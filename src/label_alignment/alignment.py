@@ -4,16 +4,18 @@ align character-offset annotations to token boundaries
 Copyright (c) 2020 LightTag
 """
 
-from typing import Sequence, Mapping
+from typing import Sequence, Mapping, Union, Optional
 
 from tokenizers import Encoding
 
+from .types import Annotation
+
 def align_tokens_and_annotations_bilou(tokenized: Encoding, 
-        annotations : Sequence[Mapping[str, int]) -> list[str]:
+        annotations : Sequence[Annotation]) -> list[str]:
     """
     given a sequence of annotations with keys "start" and "end" mapped to
-    character offsets, along with a tokenization in the form of HuggingFace
-    tokenizers.Encoding,
+    character offsets and "label" mapped to the annotation type,
+    along with a tokenization in the form of HuggingFace tokenizers.Encoding,
 
     create a list of BILOU labels representing the same annotations, but
     aligned with the tokens

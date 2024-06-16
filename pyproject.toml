@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 dependencies = [
-  tokenizers # Hugging Face tokenizers library
+  "tokenizers" # Hugging Face tokenizers library
 ]
 
 [project.urls]
