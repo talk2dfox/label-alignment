@@ -8,10 +8,10 @@ from typing import Sequence, Mapping, Union, Optional
 
 from tokenizers import Encoding
 
-from .types import Annotation
+from .types import LabeledSpan
 
 def align_tokens_and_annotations_bilou(tokenized: Encoding, 
-        annotations : Sequence[Annotation]) -> list[str]:
+        annotations : Sequence[LabeledSpan]) -> list[str]:
     """
     given a sequence of annotations with keys "start" and "end" mapped to
     character offsets and "label" mapped to the annotation type,

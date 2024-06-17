@@ -57,6 +57,11 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/label_alignment tests}"
 
+[mypy]
+mypy_path = "stubs"
+
+[tool.hatch.envs.types.env-vars]
+
 [tool.coverage.run]
 source_pkgs = ["label_alignment", "tests"]
 branch = true

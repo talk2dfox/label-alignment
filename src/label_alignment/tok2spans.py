@@ -5,19 +5,20 @@ Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
 from typing import (Sequence, Mapping, 
-        Union, Optional, 
+        Union, Optional, Generator
         )
 
-from tokenizers import Encoding
+from .span_annotation import SpanAnnotation
 
-from .types import Annotation
+from .iob_state import IOBState, Outside
 
 def iob2spans(tokens : Sequence[str], 
-        labels : Sequence[str]
-        ) -> Sequence[Annotation]:
+        labels : Sequence[str],
+        default_class : str = "CHUNK"
+        ) -> Generator[SpanAnnotation, None, None]:
     """
     given a sequence of string tokens and corresponding labels
-    in IOB-style tagging, return corresponding annotations in 
+    in IOB-style tagging, yield corresponding annotations in 
     character offsets into the string which would result from
     concatening tokens with a single space as delimiter.
 
@@ -53,26 +54,19 @@ def iob2spans(tokens : Sequence[str],
     The "-<class>" suffix is required for B and U, but optional 
     for I (except in the IOB1 and IO cases) and E.
     """
-    current_anno : Annotation = None
-        
-
-    offset: int = 0
-    state: Optional[str] = None
-    # using None for outside, otherwise lab
-    annotations : list[Annotation] = []
-    current_start: int = -1
-    prev_token_end: int = -1
-    for tok, label in zip(tokens, labels):
-        prev_state: Optional[str] = state
-        which, cat = label.split('-', max_split=1)
-        if 
-        if label
-
-
-
-#    offset: int = 0
-#    for tok, label in labeled_tokens:
-#        offset
+    state : IOBState = Outside(default_class=default_class)
+    maybe_anno : Optional[SpanAnnotation] = None
+    to_emit: SpanAnnotation
+    for token, label in zip(tokens, labels):
+        state, maybe_anno = state.see(token=token, label=label)
+        if maybe_anno is not None:
+            to_emit = maybe_anno
+            yield to_emit
+    final : Optional[SpanAnnotation] = state.end_of_text()
+    if final is not None:
+        if maybe_anno is not None:
+            to_emit = maybe_anno
+            yield to_emit
 
 
 # vim: et ai si sts=4
