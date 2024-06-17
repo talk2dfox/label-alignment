@@ -166,7 +166,7 @@ class Outside(IOBState):
         which : str
         cat : Optional[str]
         which, cat = self.interpret_label(label)
-        end_of_current = self.end_of_previous + len(token) + 1
+        end_of_current = self.end_of_previous + len(token) + (self.prev_token is not None)
         # outside, so possibilities are:
         # 1. stay outside
         # 2. start new chunk and
@@ -175,7 +175,7 @@ class Outside(IOBState):
 
         # possibility 1
         if which == "O":
-            self.previous_token = token
+            self.prev_token = token
             self.end_of_previous = end_of_current
             self.pending_anno = None
             # still outside, so clear pending_anno and 
