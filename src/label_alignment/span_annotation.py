@@ -12,7 +12,7 @@ class SpanAnnotation:
 
     @classmethod
     def open(cls, start: int, 
-            label: str = "CHUNK") -> Self:
+            label: str = "CHUNK") -> "SpanAnnotation":
         """
         create new SpanAnnotation with no
         end (end == -1)
