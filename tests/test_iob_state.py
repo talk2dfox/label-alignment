@@ -77,6 +77,12 @@ def starting_assertions(start : IOBState) -> None:
     assert (start.prev_token is None)
     assert (start.pending_anno is None)
 
+def inside_assertions(state : IOBState) -> None:
+    assert(isinstance(state, Inside))
+    assert (state.end_of_previous > 0)
+    assert (state.prev_token is not None)
+    assert (state.current_anno is not None)
+
 def test_starting_state(starting_state : IOBState) -> None:
     starting_assertions(starting_state)
 #    state, emitted = starting_state.see('
@@ -171,35 +177,40 @@ def transition_errors() -> EK:
 
    return errs
 
-def maybe_add_class(label : str, label_cls : Optional[str] = None) -> str:
+def maybe_add_class(label : str, label_cls : Optional[str] = 'PER') -> str:
     """
-    given bare label (IOBELUS), add class if required or specified
+    given bare label (IOBELUS), add class if required
+
+    use fake label 'J' or 'F' to force adding label_cls to 'I'
+    or 'E' respectively
     """
     if label in 'BUS':
         label_cls = label_cls or 'PER'
         return f'{label}-{label_cls}'
-    elif label_cls:
-        return f'{label}-{label_cls}'
+    elif label == 'J':
+        return f'I-{label_cls}'
+    elif label == 'F':
+        return f'E-{label_cls}'
     return label
 
 def state_type_assertion(state : IOBState, 
         state_type : str) -> bool:
-    if state_type == 'I':
+    if state_type.startswith('I'):
         return isinstance(state, Inside)
-    elif state_type == 'O':
+    elif state_type.startswith('O'):
         return isinstance(state, Outside)
     return False
 
 class InsideFactory(Protocol):
     @classmethod
-    def __call__(cls, label_cls : Optional[str] = "DATE") -> IOBState:
+    def __call__(cls, label_cls : Optional[str] = "COMPANY") -> IOBState:
         pass
 
 @pytest.fixture
 def inside_state_factory(starting_state_factory : StartFactory) -> InsideFactory:
-    def inside_class(label_cls : Optional[str] = "DATE") -> IOBState:
+    def inside_class(label_cls : Optional[str] = "COMPANY") -> IOBState:
         start = starting_state_factory()
-        inside, emitted = start.see('02/15/23', f'B-{label_cls}')
+        inside, emitted = start.see('Intel', f'B-{label_cls}')
         assert(emitted is None)
         assert(state_type_assertion(inside, 'I'))
         return inside
@@ -209,18 +220,22 @@ def test_transitions(transition_keys : TK,
         starting_state_factory : StartFactory,
         inside_state_factory : InsideFactory) -> None:
     tk = transition_keys
+    dummy = 'Fish'
     for expected, labels in tk['O'].items():
         for label in labels:
             start = starting_state_factory()
             full = maybe_add_class(label)
-            end, emitted = start.see('Fish', full)
+            end, emitted = start.see(dummy, full)
+            assert(end.end_of_previous == len(dummy))
             assert(emitted is None)
             assert(state_type_assertion(end, expected))
     for expected, labels in tk['I'].items():
         for label in labels:
-            inside = inside_state_factory('DATE')
+            inside = inside_state_factory('COMPANY')
             full = maybe_add_class(label)
+            eop = inside.end_of_previous
             end, emitted = inside.see('Fish', full)
+            assert(end.end_of_previous - eop == len(dummy) + 1)
             assert(state_type_assertion(end, expected))
 
 
@@ -239,6 +254,74 @@ def test_errors(transition_errors : EK,
             full = maybe_add_class(label)
             with pytest.raises(UnexpectedLabel):
                 start.see('foo', full)
+
+#---------------------------
+# test emitted annotation
+#---------------------------
+
+def test_outside_pending(starting_state_factory : StartFactory,
+        inside_state_factory : InsideFactory) -> None:
+    """
+    if we are inside, and see a token labeled U/S, then
+    we end and return the existing annotation, then
+    we can't also return the new single-token span,
+    so we transition to outside, but keep the single-token
+    span as a pending annotation
+
+    similarly, if we are outside and already have a pending
+    annotation, and then we see another U/S token, then
+    we emit the pending token and keep the new span pending
+
+    if we are outside (with or without pending) and
+    see any label other than U/S, we end with no pending 
+    annotation
+    """
+    inside : IOBState = inside_state_factory('COMPANY')
+    current : Optional[SpanAnnotation] = inside.current_annotation()
+    assert(current is not None)
+    inside_assertions(inside)
+    wpend : IOBState
+    new_start : IOBState
+    anno : Optional[SpanAnnotation]
+    resolved : Optional[SpanAnnotation]
+
+    next_label_type : str
+    for next_label_type in 'IJOBUS':
+        print(f'next label is of type {next_label_type}')
+        expect_pending : bool = False
+        if next_label_type in 'US':
+            expect_pending = True
+        inside = inside_state_factory('COMPANY')
+        state_type_assertion(inside, "I")
+        current = inside.current_annotation()
+        assert(current is not None)
+        assert(current.label == 'COMPANY')
+        next_label : str = maybe_add_class(next_label_type,
+                'PERS')
+        print(f'next label is {next_label}')
+        wpend, anno = inside.see('David', next_label)
+        if next_label_type != 'I':
+            assert(anno is current)
+        else:
+            state_type_assertion(wpend, 'I')
+            assert(wpend.current_annotation() is current)
+        if next_label_type in 'USO':
+            state_type_assertion(wpend, "O")
+            pend : Optional[SpanAnnotation] = wpend.pending_annotation()
+            if expect_pending:
+                assert(pend is not None)
+                assert(pend.label == 'PERS')
+                assert(pend.end == wpend.end_of_previous)
+                assert(pend.is_closed())
+                assert(len(pend) == len('David'))
+                resolved = wpend.end_of_text()
+                assert(pend is resolved)
+            else:
+                assert(pend is None)
+                resolved = wpend.end_of_text()
+                assert(resolved is None)
+
+
 
 #    return [
 #            ( ("O", "B-PER"), "I" ),

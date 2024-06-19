@@ -88,6 +88,12 @@ class IOBState(ABC):
         self.prev_token = prev_token
         self.end_of_previous : int = end_of_previous
 
+    @abstractmethod
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return None
+    @abstractmethod
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return None
     def new_annotation(self, label : Optional[str] = None) -> SpanAnnotation:
         """
         create a new 'open' annotation (one with end == -1)
@@ -145,6 +151,10 @@ class Outside(IOBState):
             ) -> None:
         super().__init__(prev_token=prev_token, end_of_previous=end_of_previous, default_class=default_class)
         self.pending_anno = pending_anno
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return self.pending_anno
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return None
     def end_of_text(self) -> Optional[SpanAnnotation]:
         """
         owner MUST call end_of_text when there are no more tokens
@@ -224,6 +234,10 @@ class Inside(IOBState):
             ) -> None:
         super().__init__(prev_token=prev_token, end_of_previous=end_of_previous, default_class=default_class)
         self.current_anno = current_anno
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return None
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return self.current_anno
     def end_of_text(self) -> Optional[SpanAnnotation]:
         """
         owner MUST call end_of_text when there are no more tokens

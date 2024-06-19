@@ -1,8 +1,11 @@
-from typing import Sequence, Mapping, Union, Optional, Self
+from typing import (
+        Sequence, Mapping, Union, Optional,
+#        Sized,
+        )
 
 #from .types import LabeledSpan
 
-class SpanAnnotation:
+class SpanAnnotation():
     def __init__(self, start : int,
             label : str,
             end : int = -1) -> None:
@@ -10,6 +13,16 @@ class SpanAnnotation:
         self.label = label
         self.end = end
 
+    def is_open(self) -> bool:
+        return self.end == -1
+
+    def is_closed(self) -> bool:
+        return self.end >= 0
+
+    def __len__(self) -> int:
+        if self.end == -1:
+            return -1
+        return self.end-self.start
     @classmethod
     def open(cls, start: int, 
             label: str = "CHUNK") -> "SpanAnnotation":
