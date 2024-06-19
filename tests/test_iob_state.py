@@ -111,7 +111,7 @@ def still_outside_not_first(
     return state, no_emit
 
 def test_sonf(starting_state : Outside) -> None:
-    state : Outside
+    state : IOBState
     no_emit : Optional[SpanAnnotation]
     state, no_emit = still_outside_not_first(starting_state)
     assert(no_emit is None)
@@ -125,7 +125,11 @@ def test_sonf(starting_state : Outside) -> None:
 
 # currently, offset advance occurs in multiple places in each implementation
 # of see, so really need to check all of them (or figure out an aspect-oriented
-# way to unify them
+# way to unify them)
+#
+# here, just test from outside, seeing O
+# 
+# rest are tested in test_transitions
 
 def test_advance_from_start(starting_state : IOBState) -> None:
     token = 'the'
@@ -136,8 +140,8 @@ def test_advance_from_start(starting_state : IOBState) -> None:
     assert(state.prev_token == token)
 
 def test_advance_from_nonstart(starting_state : Outside) -> None:
-    token = 'most'
-    sonf = still_outside_not_first(starting_state)[0]
+    token : str = 'most'
+    sonf : IOBState = still_outside_not_first(starting_state)[0]
     eop_orig = sonf.end_of_previous
     state, no_emit = sonf.see(token, 'O')
     print(sonf.end_of_previous)
@@ -206,22 +210,6 @@ def state_type_check(state : IOBState,
         return isinstance(state, Outside)
     return False
 
-def test_state_type_check(starting_state_factory,
-        inside_state_factory):
-    state : IOBState
-    no_emit : Optional[SpanAnnotation]
-    state = starting_state_factory()
-    assert(state_type_check(state, "O"))
-    assert(not state_type_check(state, "I"))
-    state, no_emit = still_outside_not_first(state)
-    assert(no_emit is None)
-    assert(state_type_check(state, "O"))
-    assert(not state_type_check(state, "I"))
-    state = inside_state_factory()
-    assert(not state_type_check(state, "O"))
-    assert(state_type_check(state, "I"))
-
-
 class InsideFactory(Protocol):
     @classmethod
     def __call__(cls, label_cls : Optional[str] = "COMPANY") -> IOBState:
@@ -237,9 +225,29 @@ def inside_state_factory(starting_state_factory : StartFactory) -> InsideFactory
         return inside
     return inside_class
     
+def test_state_type_check(starting_state_factory : StartFactory,
+        inside_state_factory : InsideFactory) -> None:
+    state : IOBState
+    no_emit : Optional[SpanAnnotation]
+    state = starting_state_factory()
+    assert(state_type_check(state, "O"))
+    assert(not state_type_check(state, "I"))
+    state, no_emit = still_outside_not_first(state)
+    assert(no_emit is None)
+    assert(state_type_check(state, "O"))
+    assert(not state_type_check(state, "I"))
+    state = inside_state_factory()
+    assert(not state_type_check(state, "O"))
+    assert(state_type_check(state, "I"))
+
+
 def test_transitions(transition_keys : TK, 
         starting_state_factory : StartFactory,
         inside_state_factory : InsideFactory) -> None:
+    """
+    test all state transitions
+    (and also position advancement)
+    """
     tk = transition_keys
     dummy = 'Fish'
     for expected, labels in tk['O'].items():
@@ -247,6 +255,7 @@ def test_transitions(transition_keys : TK,
             start = starting_state_factory()
             full = maybe_add_class(label)
             end, emitted = start.see(dummy, full)
+            # test advancement
             assert(end.end_of_previous == len(dummy))
             assert(emitted is None)
             assert(state_type_check(end, expected))
@@ -256,6 +265,7 @@ def test_transitions(transition_keys : TK,
             full = maybe_add_class(label)
             eop = inside.end_of_previous
             end, emitted = inside.see('Fish', full)
+            # test advancement
             assert(end.end_of_previous - eop == len(dummy) + 1)
             assert(state_type_check(end, expected))
 
@@ -325,6 +335,7 @@ def test_outside_pending(
     inside : IOBState = inside_state_factory('COMPANY')
     current : Optional[SpanAnnotation] = inside.current_annotation()
     assert(current is not None)
+    assert(current.is_open())
     inside_assertions(inside)
     wpend : IOBState
     new_start : IOBState
@@ -344,6 +355,7 @@ def test_outside_pending(
         state_type_check(inside, "I")
         current = inside.current_annotation()
         assert(current is not None)
+        assert(current.is_open())
         assert(current.label == 'COMPANY')
 
         # what do we expect after inside sees the next labeled token
@@ -364,7 +376,10 @@ def test_outside_pending(
         if next_label_type == 'I':
             # testing 1(b)
             assert(state_type_check(wpend, 'I'))
-            assert(wpend.current_annotation() is current)
+            wp_current = wpend.current_annotation()
+            assert(wp_current is not None)
+            assert(wp_current is current)
+            assert(wp_current.is_open())
         else:
             # everything else ends the current annotation, returning it
             # testing emission in cases 1(c) and 1(d)
