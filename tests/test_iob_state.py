@@ -100,7 +100,6 @@ def test_starting_state_factory(
         starting_assertions(start)
         previous.append(start)
 
-@pytest.fixture
 def still_outside_not_first(
         starting_state  : IOBState
         ) -> SeeReturn:
@@ -111,8 +110,14 @@ def still_outside_not_first(
     state, no_emit = starting_state.see(token, 'O')
     return state, no_emit
 
-def test_sonf(still_outside_not_first : SeeReturn) -> None:
-    state, no_emit = still_outside_not_first
+def test_sonf(starting_state : Outside) -> None:
+    state : Outside
+    no_emit : Optional[SpanAnnotation]
+    state, no_emit = still_outside_not_first(starting_state)
+    assert(no_emit is None)
+    assert(isinstance(state, Outside))
+    assert(state.end_of_previous > 0)
+    state, no_emit = still_outside_not_first(state)
     assert(no_emit is None)
     assert(isinstance(state, Outside))
     assert(state.end_of_previous > 0)
@@ -130,9 +135,9 @@ def test_advance_from_start(starting_state : IOBState) -> None:
     assert(state.end_of_previous == len(token))
     assert(state.prev_token == token)
 
-def test_advance_from_nonstart(still_outside_not_first : SeeReturn) -> None:
+def test_advance_from_nonstart(starting_state : Outside) -> None:
     token = 'most'
-    sonf = still_outside_not_first[0]
+    sonf = still_outside_not_first(starting_state)[0]
     eop_orig = sonf.end_of_previous
     state, no_emit = sonf.see(token, 'O')
     print(sonf.end_of_previous)
@@ -193,13 +198,29 @@ def maybe_add_class(label : str, label_cls : Optional[str] = 'PER') -> str:
         return f'E-{label_cls}'
     return label
 
-def state_type_assertion(state : IOBState, 
+def state_type_check(state : IOBState, 
         state_type : str) -> bool:
     if state_type.startswith('I'):
         return isinstance(state, Inside)
     elif state_type.startswith('O'):
         return isinstance(state, Outside)
     return False
+
+def test_state_type_check(starting_state_factory,
+        inside_state_factory):
+    state : IOBState
+    no_emit : Optional[SpanAnnotation]
+    state = starting_state_factory()
+    assert(state_type_check(state, "O"))
+    assert(not state_type_check(state, "I"))
+    state, no_emit = still_outside_not_first(state)
+    assert(no_emit is None)
+    assert(state_type_check(state, "O"))
+    assert(not state_type_check(state, "I"))
+    state = inside_state_factory()
+    assert(not state_type_check(state, "O"))
+    assert(state_type_check(state, "I"))
+
 
 class InsideFactory(Protocol):
     @classmethod
@@ -212,7 +233,7 @@ def inside_state_factory(starting_state_factory : StartFactory) -> InsideFactory
         start = starting_state_factory()
         inside, emitted = start.see('Intel', f'B-{label_cls}')
         assert(emitted is None)
-        assert(state_type_assertion(inside, 'I'))
+        assert(state_type_check(inside, 'I'))
         return inside
     return inside_class
     
@@ -228,7 +249,7 @@ def test_transitions(transition_keys : TK,
             end, emitted = start.see(dummy, full)
             assert(end.end_of_previous == len(dummy))
             assert(emitted is None)
-            assert(state_type_assertion(end, expected))
+            assert(state_type_check(end, expected))
     for expected, labels in tk['I'].items():
         for label in labels:
             inside = inside_state_factory('COMPANY')
@@ -236,7 +257,7 @@ def test_transitions(transition_keys : TK,
             eop = inside.end_of_previous
             end, emitted = inside.see('Fish', full)
             assert(end.end_of_previous - eop == len(dummy) + 1)
-            assert(state_type_assertion(end, expected))
+            assert(state_type_check(end, expected))
 
 
 def test_errors(transition_errors : EK, 
@@ -259,22 +280,47 @@ def test_errors(transition_errors : EK,
 # test emitted annotation
 #---------------------------
 
-def test_outside_pending(starting_state_factory : StartFactory,
+def is_pending(pend : Optional[SpanAnnotation], 
+        label : Optional[str] = None, 
+        end_of_previous : Optional[int] = None,
+        length : Optional[int] = None
+        ) -> None:
+    assert(pend is not None)
+    if label is not None:
+        assert(pend.label == label)
+    if end_of_previous is not None:
+        assert(pend.end == end_of_previous)
+    assert(pend.is_closed())
+    if length is not None:
+        assert(len(pend) == length)
+
+def test_outside_pending(
+        starting_state_factory : StartFactory,
         inside_state_factory : InsideFactory) -> None:
     """
-    if we are inside, and see a token labeled U/S, then
-    we end and return the existing annotation, then
-    we can't also return the new single-token span,
-    so we transition to outside, but keep the single-token
-    span as a pending annotation
+    case 1: (positive/negative)
+        (a) (positive) if we are inside, and see a token labeled U/S, then
+        we end and return the existing annotation, then
+        we can't also return the new single-token span,
+        so we transition to outside, but keep the single-token
+        span as a pending annotation.  
 
-    similarly, if we are outside and already have a pending
-    annotation, and then we see another U/S token, then
-    we emit the pending token and keep the new span pending
+        For any other label, next step is one of the following
+        (b) (negative) see I-consistent, return nothing and 
+        stay inside,
+        (c) (negative) see B or I-inconsistent, return current and transition 
+        to new Inside state
+        (d) (negative) see E/L or O, return current and transition to outside
 
-    if we are outside (with or without pending) and
-    see any label other than U/S, we end with no pending 
-    annotation
+    case 2: (positive)
+        similarly, if we are outside and already have a pending
+        annotation, and then we see another U/S token, then
+        we emit the pending token and keep the new span pending
+
+    case 3: (negative)
+        if we are outside (with or without pending) and
+        see any label other than U/S, we end with no pending 
+        annotation
     """
     inside : IOBState = inside_state_factory('COMPANY')
     current : Optional[SpanAnnotation] = inside.current_annotation()
@@ -286,40 +332,101 @@ def test_outside_pending(starting_state_factory : StartFactory,
     resolved : Optional[SpanAnnotation]
 
     next_label_type : str
-    for next_label_type in 'IJOBUS':
+    # starting with an inside state (current, unfinished annotation)
+    # we test case 1
+    # for next label, test all cases 
+    for next_label_type in 'IJOBUSEL':
+        # I represents I consistent, whereas J represents I inconsistent
         print(f'next label is of type {next_label_type}')
-        expect_pending : bool = False
-        if next_label_type in 'US':
-            expect_pending = True
+        # start in (fresh) inside state
         inside = inside_state_factory('COMPANY')
-        state_type_assertion(inside, "I")
+        # veriy that
+        state_type_check(inside, "I")
         current = inside.current_annotation()
         assert(current is not None)
         assert(current.label == 'COMPANY')
+
+        # what do we expect after inside sees the next labeled token
+        expect_pending : bool = False
+        # expend pending after next only if next token 
+        # (1) ends current anno AND
+        # (2) starts a new one
+        # only labels which do that are U/S
+        if next_label_type in 'US':
+            # U/S ends current  - selecting case 1(a)
+            # case 1(a)
+            expect_pending = True
+
         next_label : str = maybe_add_class(next_label_type,
                 'PERS')
         print(f'next label is {next_label}')
         wpend, anno = inside.see('David', next_label)
-        if next_label_type != 'I':
-            assert(anno is current)
-        else:
-            state_type_assertion(wpend, 'I')
+        if next_label_type == 'I':
+            # testing 1(b)
+            assert(state_type_check(wpend, 'I'))
             assert(wpend.current_annotation() is current)
-        if next_label_type in 'USO':
-            state_type_assertion(wpend, "O")
+        else:
+            # everything else ends the current annotation, returning it
+            # testing emission in cases 1(c) and 1(d)
+            assert(anno is current)
+        if next_label_type in 'JB':
+            # testing 1(c) transition
+            assert(state_type_check(wpend, "I")) 
+        elif next_label_type in 'USOEL':
+            assert(state_type_check(wpend, "O"))
             pend : Optional[SpanAnnotation] = wpend.pending_annotation()
-            if expect_pending:
-                assert(pend is not None)
-                assert(pend.label == 'PERS')
-                assert(pend.end == wpend.end_of_previous)
-                assert(pend.is_closed())
-                assert(len(pend) == len('David'))
-                resolved = wpend.end_of_text()
-                assert(pend is resolved)
-            else:
+            if expect_pending: # testing case 1(a)
+                is_pending(pend, label='PERS', 
+                        end_of_previous=wpend.end_of_previous,
+                        length=len('David')
+                        )
+                # testing case 2
+                wpend2 : IOBState
+                emit2 : Optional[SpanAnnotation]
+                wpend2, emit2 = wpend.see('foo', 'U-MADE-UP-TERM')
+                assert(emit2 is pend)
+                pend2 : Optional[SpanAnnotation] = wpend2.pending_annotation()
+                is_pending(pend2, label='MADE-UP-TERM', 
+                        end_of_previous=wpend2.end_of_previous,
+                        length=len('foo')
+                        )
+
+                if next_label_type == 'U':
+                    out_pending = pend
+                resolved = wpend2.end_of_text()
+                assert(pend2 is resolved)
+            else: # testing case 1(d)
+                # tests
                 assert(pend is None)
                 resolved = wpend.end_of_text()
                 assert(resolved is None)
+
+        wnopend : IOBState
+        outside : Outside = starting_state_factory()
+        wnopend, anno = outside.see('then', 'O')
+        assert(anno is None)
+        assert(state_type_check(wnopend, 'O'))
+        assert(wnopend.pending_annotation() is None)
+        inside = inside_state_factory('COMPANY')
+        outside_pending : IOBState
+        outside_pending, anno = inside.see('David', 'U-PERS')
+        assert(anno is not None)
+        assert(anno.label == 'COMPANY')
+        pend = outside_pending.pending_annotation()
+        is_pending(pend, label='PERS',
+                length=len('David'))
+        wnopend, anno = outside_pending.see('then', 'O')
+        assert(anno is not None)
+        assert(anno.label == 'PERS')
+        assert(state_type_check(wnopend, 'O'))
+        assert(wnopend.pending_annotation() is None)
+        assert(wnopend.end_of_text() is None)
+
+
+
+
+
+
 
 
 
