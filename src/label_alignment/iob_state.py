@@ -26,7 +26,7 @@ means that it cannot validate any specific scheme
 """
 
 from abc import ABC, abstractmethod
-from typing import Sequence, Mapping, Union, Optional, TypedDict, Self
+from typing import Sequence, Mapping, Union, Optional
 
 from .span_annotation import SpanAnnotation
 
