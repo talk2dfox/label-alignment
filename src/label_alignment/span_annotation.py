@@ -3,7 +3,7 @@ from typing import (
 #        Sized,
         )
 
-#from .types import LabeledSpan
+from .types import LabeledSpan
 
 class SpanAnnotation():
     def __init__(self, start : int,
@@ -12,6 +12,35 @@ class SpanAnnotation():
         self.start = start
         self.label = label
         self.end = end
+    def __str__(self):
+        return f'{self.label}: ({self.start}, {self.end})'
+    def __repr__(self):
+        r = '{cls}({label}, {start}, {end})'
+        filled = r.format(cls='SpanAnnotation',
+                label=self.label,
+                start=self.start,
+                end=self.end)
+#        {
+#            'cls': type(self), 
+#            'label': self.label,
+#            'start': self.start,
+#            'end': self.end,
+#            }
+#            )
+            
+        return filled
+    def __eq__(self, other):
+        return (
+                (self.start == other.start)
+                and
+                (self.end == other.end)
+                and
+                (self.label == other.label)
+                )
+    def to_labeled_span(self):
+        return LabeledSpan(start=self.start,
+                label=self.label,
+                end=self.end)
 
     def is_open(self) -> bool:
         return self.end == -1
