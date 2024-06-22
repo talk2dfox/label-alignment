@@ -13,6 +13,14 @@ from typing import (
         )
 
 class LabeledSpan(TypedDict):
+    """
+    alignment routine expects dictionary-like
+    access to start, end, label, which TypedDict
+    provides
+
+    Although TypedDicts can be defined in a way which looks 
+    like a class, you can't define methods
+    """
     start : int
     end : int
     label : str
@@ -21,3 +29,4 @@ class LabeledText(TypedDict):
     text : str
     label : NotRequired[str]
 
+# vim: et ai si sts=4

@@ -1,5 +1,6 @@
 """
-SpanAnnotation class used by sax2spans.py
+SpanAnnotation class representing annotated spans,
+used by sax2spans.py
 
 Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
@@ -7,11 +8,18 @@ Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 from typing import (
         Sequence, Mapping, Union, Optional,
 #        Sized,
+        Self,
+        Tuple, List, Dict,
         )
+from collections.abc import Iterator
 
 from .types import LabeledSpan
 
-class SpanAnnotation():
+class SpanAnnotation(object):
+    """
+    Annotated Span (complete or incomplete)
+    and associated methods
+    """
     def __init__(self, start : int,
             label : str,
             end : int = -1) -> None:
@@ -35,7 +43,7 @@ class SpanAnnotation():
 #            )
             
         return filled
-    def __eq__(self, other):
+    def __eq__(self, other : Self) -> bool:
         return (
                 (self.start == other.start)
                 and
@@ -43,7 +51,13 @@ class SpanAnnotation():
                 and
                 (self.label == other.label)
                 )
-    def to_labeled_span(self):
+    @classmethod
+    def from_labeled_span(cls, labeled : LabeledSpan) -> Self:
+        return cls(start=labeled['start'],
+                end=labeled['end'],
+                label = labeled.label)
+
+    def to_labeled_span(self) -> LabeledSpan:
         return LabeledSpan(start=self.start,
                 label=self.label,
                 end=self.end)
@@ -72,6 +86,68 @@ class SpanAnnotation():
 
     def reopen(self) -> None:
         self.end = -1
+
+    def intersection(self, 
+            other : Self) -> Optional[Tuple[int, int]]:
+        """
+        find intersection with another SpanAnnotation,
+        returning tuple of bounds on intersection if non-empty,
+        else None
+        """
+        left = max(self.start, other.start)
+        right = min(self.end, other.end)
+        if left < right:
+            return (left, right)
+        return None
+
+def partial_order(spans : Sequence[SpanAnnotation]) -> List[SpanAnnotation]:
+    """
+    given a sequence of SpanAnnotations, return a list
+    in sorted order.
+
+    Takes O(N) space and O(N log N) time
+
+    mathematically, this is a partial ordering, because
+    it uses only the start attributes
+    """
+    sorted_spans : List[SpanIteration] = \
+            sorted(spans, key=lambda el: el.start)
+    return sorted_spans
+
+def are_disjoint(spans : Sequence[SpanAnnotation]) -> bool:
+    """
+    verify that a sequence of SpanAnnotations has no
+    nested or overlapping spans
+    """
+    sorted_spans : List[SpanIteration] = partial_order(spans)
+    if len(sorted_spans) < 2:
+        return True
+    ordered : Iterator[SpanIteration] = iter(sorted_spans)
+    prev : SpanAnnotation = ordered.next()
+    for span in ordered:
+        if prev.intersection(span):
+            return False
+    return True
+
+def compare_annotation(spans : Sequence[SpanAnnotation],
+        other_spans : Sequence[SpanAnnotation]) \
+                -> None:
+    """
+    TODO: finish
+
+    Note: compare_annotation ASSUMES that each sequence
+    is disjoint 
+    """
+    ordered : List[SpanAnnotation] = partial_order(spans)
+    other_ordered : List[SpanAnnotation] = partial_order(other_spans)
+    if len(ordered) == 0 or len(other_ordered) == 0:
+        return {}
+    i = iter(spans)
+    io = iter(other_spans)
+
+
+
+
 
 # vim: et ai si sts=4
 
