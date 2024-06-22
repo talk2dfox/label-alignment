@@ -9,7 +9,7 @@ from typing import (Sequence, Mapping,
         Union, Optional, Generator
         )
 
-from .span_annotation import SpanAnnotation
+from .annotation.span_annotation import SpanAnnotation
 
 from .iob_state import IOBState, Outside
 

@@ -13,7 +13,7 @@ from typing import (
         )
 from collections.abc import Iterator
 
-from .types import LabeledSpan
+from .labeled import LabeledSpan
 
 class SpanAnnotation(object):
     """
@@ -55,7 +55,7 @@ class SpanAnnotation(object):
     def from_labeled_span(cls, labeled : LabeledSpan) -> Self:
         return cls(start=labeled['start'],
                 end=labeled['end'],
-                label = labeled.label)
+                label = labeled['label'])
 
     def to_labeled_span(self) -> LabeledSpan:
         return LabeledSpan(start=self.start,
@@ -110,7 +110,7 @@ def partial_order(spans : Sequence[SpanAnnotation]) -> List[SpanAnnotation]:
     mathematically, this is a partial ordering, because
     it uses only the start attributes
     """
-    sorted_spans : List[SpanIteration] = \
+    sorted_spans : List[SpanAnnotation] = \
             sorted(spans, key=lambda el: el.start)
     return sorted_spans
 
@@ -119,11 +119,11 @@ def are_disjoint(spans : Sequence[SpanAnnotation]) -> bool:
     verify that a sequence of SpanAnnotations has no
     nested or overlapping spans
     """
-    sorted_spans : List[SpanIteration] = partial_order(spans)
+    sorted_spans : List[SpanAnnotation] = partial_order(spans)
     if len(sorted_spans) < 2:
         return True
-    ordered : Iterator[SpanIteration] = iter(sorted_spans)
-    prev : SpanAnnotation = ordered.next()
+    ordered : Iterator[SpanAnnotation] = iter(sorted_spans)
+    prev : SpanAnnotation = next(ordered)
     for span in ordered:
         if prev.intersection(span):
             return False
@@ -131,7 +131,7 @@ def are_disjoint(spans : Sequence[SpanAnnotation]) -> bool:
 
 def compare_annotation(spans : Sequence[SpanAnnotation],
         other_spans : Sequence[SpanAnnotation]) \
-                -> None:
+                -> Dict:
     """
     TODO: finish
 
@@ -144,6 +144,7 @@ def compare_annotation(spans : Sequence[SpanAnnotation],
         return {}
     i = iter(spans)
     io = iter(other_spans)
+    return {}
 
 
 

@@ -9,11 +9,11 @@ with additional changes (primarily type hints and docstrings) Copyright (c)
 
 from typing import Sequence, Mapping, Union, Optional, List
 
-from .tokenized import Tokenized
+from .tokenization.tokenized import Tokenized
 
 
 
-from .types import LabeledSpan
+from .annotation.labeled import LabeledSpan
 
 def align_tokens_and_annotations_bilou(tokenized: Tokenized, 
         annotations : Sequence[LabeledSpan]) -> List[str]:

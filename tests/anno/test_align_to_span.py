@@ -17,9 +17,9 @@ from typing import (
 
 from label_alignment import alignment
 from label_alignment import tok2spans
-from label_alignment.span_annotation import SpanAnnotation
-from label_alignment.tokenized import Tokenized
-from label_alignment.types import LabeledSpan
+from label_alignment.annotation.span_annotation import SpanAnnotation
+from label_alignment.tokenization.tokenized import Tokenized
+from label_alignment.annotation.labeled import LabeledSpan
 
 # first do a simple smoke test - will alignment run with
 # output of wss_tok?

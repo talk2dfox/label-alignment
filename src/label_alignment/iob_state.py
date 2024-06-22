@@ -30,7 +30,7 @@ Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 from abc import ABC, abstractmethod
 from typing import Sequence, Mapping, Union, Optional
 
-from .span_annotation import SpanAnnotation
+from .annotation.span_annotation import SpanAnnotation
 
 
 def delim_width_before(token : str, 

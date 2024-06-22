@@ -23,14 +23,17 @@ from typing import (
         Protocol,
         )
 
-from label_alignment.span_annotation import SpanAnnotation
+from label_alignment.annotation.span_annotation import SpanAnnotation
 
-from label_alignment.sax2spans import (
+import xml.sax 
+
+from label_alignment.annotation.sax2spans import (
+        SpanAndText,
+        text_and_spans,
         span_parsed,
-        find_consec_whitespace,
         )
 
-from label_alignment.simple_tokenizers import ws_tokenizer, wss_tokenizer
+from label_alignment.tokenization.simple_tokenizers import ws_tokenizer, wss_tokenizer
 
 
 #--------------------
@@ -48,9 +51,6 @@ def anno_path(data_path):
 #--------------------
 # Jules Verne as data
 #--------------------
-
-import xml.sax 
-from label_alignment.sax2spans import SpanAndText, text_and_spans, find_consec_whitespace
 
 
 @pytest.fixture

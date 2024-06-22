@@ -15,7 +15,7 @@ from typing import (
 
 from collections import OrderedDict
 
-from label_alignment.span_annotation import SpanAnnotation
+from label_alignment.annotation.span_annotation import SpanAnnotation
 
 from label_alignment.iob_state import (
     IOBState, Inside, Outside,

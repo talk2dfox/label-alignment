@@ -16,7 +16,7 @@ from xml.sax.handler import ContentHandler
 from xml.sax.xmlreader import Locator, AttributesImpl
 
 from .span_annotation import SpanAnnotation
-from .types import LabeledText
+from .labeled import LabeledText
 
 
 class Reporter(ContentHandler):
