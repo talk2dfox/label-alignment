@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "label-alignment"
+dynamic = ["version"]
+description = 'utilities for aligning annotations with token boundaries'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "David Charles Fox", email = "talk2dfox@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+dependencies = [
+  "tokenizers" # Hugging Face tokenizers library
+]
+
+[project.urls]
+Documentation = "https://github.com/talk2dfox/label-alignment#readme"
+Issues = "https://github.com/talk2dfox/label-alignment/issues"
+Source = "https://github.com/talk2dfox/label-alignment"
+
+[tool.hatch.version]
+path = "src/label_alignment/__about__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+
+[tool.hatch.envs.jup]
+extra-dependencies = [
+    "jupyterlab",
+    "ipython",
+    "ipykernel",
+    "jupyter",
+    "jupyter-client",
+
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/label_alignment tests}"
+
+[mypy]
+mypy_path = "stubs"
+
+[tool.hatch.envs.types.env-vars]
+
+[tool.coverage.run]
+source_pkgs = ["label_alignment", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/label_alignment/__about__.py",
+]
+
+[tool.coverage.paths]
+label_alignment = ["src/label_alignment", "*/label-alignment/src/label_alignment"]
+tests = ["tests", "*/label-alignment/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
