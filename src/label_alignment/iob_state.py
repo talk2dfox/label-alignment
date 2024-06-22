@@ -16,7 +16,7 @@ Supports any of the following schema:
     tokens in a chunk, at the cost of being unable to 
     represent sequences with two adjacent tokens of the 
     same class)
-- IOB plus E (ending token of an annotation)
+- IOB plus E/L (ending token of an annotation)
     and/or U/S (either U or S represents a class spanning 
     only a single token)
 
@@ -26,7 +26,7 @@ means that it cannot validate any specific scheme
 """
 
 from abc import ABC, abstractmethod
-from typing import Sequence, Mapping, Union, Optional, TypedDict, Self
+from typing import Sequence, Mapping, Union, Optional
 
 from .span_annotation import SpanAnnotation
 
@@ -88,6 +88,12 @@ class IOBState(ABC):
         self.prev_token = prev_token
         self.end_of_previous : int = end_of_previous
 
+    @abstractmethod
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return None
+    @abstractmethod
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return None
     def new_annotation(self, label : Optional[str] = None) -> SpanAnnotation:
         """
         create a new 'open' annotation (one with end == -1)
@@ -111,7 +117,7 @@ class IOBState(ABC):
 
     @abstractmethod
     def see(self, token : str, 
-            label : Optional[str] = None) -> tuple[Self, Optional[SpanAnnotation]]:
+            label : Optional[str] = None) -> tuple["IOBState", Optional[SpanAnnotation]]:
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -135,7 +141,7 @@ class IOBState(ABC):
             cat = wc[1]
         return (which, cat)
 
-
+SeeReturn = tuple[IOBState, Optional[SpanAnnotation]]
 
 class Outside(IOBState):
     def __init__(self, prev_token : Optional[str] = None,
@@ -145,6 +151,10 @@ class Outside(IOBState):
             ) -> None:
         super().__init__(prev_token=prev_token, end_of_previous=end_of_previous, default_class=default_class)
         self.pending_anno = pending_anno
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return self.pending_anno
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return None
     def end_of_text(self) -> Optional[SpanAnnotation]:
         """
         owner MUST call end_of_text when there are no more tokens
@@ -153,7 +163,7 @@ class Outside(IOBState):
         return self.pending_anno
 
     def see(self, token : str,
-            label : Optional[str] = None) -> tuple[IOBState, Optional[SpanAnnotation]]:
+            label : Optional[str] = None) -> SeeReturn:
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -166,7 +176,7 @@ class Outside(IOBState):
         which : str
         cat : Optional[str]
         which, cat = self.interpret_label(label)
-        end_of_current = self.end_of_previous + len(token) + 1
+        end_of_current = self.end_of_previous + len(token) + (self.prev_token is not None)
         # outside, so possibilities are:
         # 1. stay outside
         # 2. start new chunk and
@@ -175,7 +185,7 @@ class Outside(IOBState):
 
         # possibility 1
         if which == "O":
-            self.previous_token = token
+            self.prev_token = token
             self.end_of_previous = end_of_current
             self.pending_anno = None
             # still outside, so clear pending_anno and 
@@ -187,8 +197,8 @@ class Outside(IOBState):
 
         # not one of expected possibilities,
         # so raise exception
-        if which == "E":
-            msg = "not expecting E (end of anno) when Outside any current SpanAnnotation"
+        if which in "EL":
+            msg = f"not expecting {which} (end of anno) when Outside any current SpanAnnotation"
             raise UnexpectedLabel(msg)
 
         # possibility 2, so create new (incomplete) annotation
@@ -224,6 +234,10 @@ class Inside(IOBState):
             ) -> None:
         super().__init__(prev_token=prev_token, end_of_previous=end_of_previous, default_class=default_class)
         self.current_anno = current_anno
+    def pending_annotation(self) -> Optional[SpanAnnotation]:
+        return None
+    def current_annotation(self) -> Optional[SpanAnnotation]:
+        return self.current_anno
     def end_of_text(self) -> Optional[SpanAnnotation]:
         """
         owner MUST call end_of_text when there are no more tokens
@@ -233,7 +247,7 @@ class Inside(IOBState):
         return self.current_anno
 
     def see(self, token : str,
-            label : Optional[str] = None) -> tuple[IOBState, Optional[SpanAnnotation]]:
+            label : Optional[str] = None) -> SeeReturn:
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -249,8 +263,8 @@ class Inside(IOBState):
 
         # inside, so possibilities are
         # 1. new label is outside (O), or explicitly ends the 
-        #    current annotation without starting a new one (E), 
-        #    so close and return current annotation 
+        #    current annotation without starting a new one 
+        #    (E/L), so close and return current annotation 
         #    and transition to outside
         # 2. new label (U/S) explicitly starts a single-token 
         #    annotation, so close and return current annotation
@@ -263,7 +277,7 @@ class Inside(IOBState):
         # 4. new label is consistent with current one, so
         #    continue inside
 
-        if which not in "BIOUSE": # none of the above
+        if which not in "BIOUSEL": # none of the above
             msg = f"unknown label-type {which}"
             raise UnexpectedLabel(msg)
 
@@ -286,12 +300,12 @@ class Inside(IOBState):
 #       so we know we have "BOEUS" or I-inconsistent
 #       therefore existing anno ends
         to_emit : SpanAnnotation = self.current_anno
-        if which == "E":  # if current token is included
+        if which in "EL":  # if current token is included
             to_emit.close(end=end_of_current)
         else:
             to_emit.close(end=self.end_of_previous)
         
-        if which in "EO":
+        if which in "ELO":
             # possibility 1
             # no new annotation, so transition to Outside
             new_state = Outside(prev_token=token,

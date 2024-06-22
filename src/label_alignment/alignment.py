@@ -6,11 +6,13 @@ Copyright (c) 2020 LightTag
 
 from typing import Sequence, Mapping, Union, Optional
 
-from tokenizers import Encoding
+from .tokenized import Tokenized
+
+
 
 from .types import LabeledSpan
 
-def align_tokens_and_annotations_bilou(tokenized: Encoding, 
+def align_tokens_and_annotations_bilou(tokenized: Tokenized, 
         annotations : Sequence[LabeledSpan]) -> list[str]:
     """
     given a sequence of annotations with keys "start" and "end" mapped to
