@@ -2,7 +2,7 @@
 define tokenized interface for input to 
 alignment.align_tokens_and_annotation_bilou
 
-Copyright (C) 2024-present David Fox
+Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
 from typing import Protocol, List, Union, Optional

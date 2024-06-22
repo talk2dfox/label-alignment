@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "label-alignment"
 dynamic = ["version"]
-description = 'utilities for aligning annotations with token boundaries'
+description = 'Utilities for transforming sequence annotation between IOB (and variants) and character spans'
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"

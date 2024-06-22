@@ -1,3 +1,14 @@
+"""
+common fixtures for tests using test data from ../data/annotations
+
+note: because of the peculiar way in which pytest
+makes conftest.py available, anything defined
+in here conftest.py can be used here, but only
+the @pytest.fixture functions can be used
+in the test_ modules.
+
+Copyright (C) 2024-present David C. Fox <talk2dfox@gmail.com>
+"""
 import pytest
 
 from pathlib import Path
@@ -71,6 +82,10 @@ def wss_tok():
     return wss_tokenizer()
 
 def tokenize(src, tokenizer):
+    """
+    standardize reading from XML-annotated text
+    and tokenization 
+    """
     text, annos = span_parsed(src)
     assert(len(find_consec_whitespace(text)) == 0)
     tokenized = tokenizer.tokenize(text)

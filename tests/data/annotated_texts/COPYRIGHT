@@ -1,0 +1,35 @@
+SOURCES
+
+Unless otherwise noted below,
+.txt files in this directory are excerpted from Project Gutenberg (https://www.gutenberg.org)
+
+The following notice applies to all Project Gutenberg excerpts included here:
+
+This eBook is for the use of anyone anywhere in the United States and most other parts of the world at no cost and with almost
+no restrictions whatsoever. You may copy it, give it away or re-use it under the terms of the Project Gutenberg License included
+with this eBook or online at www.gutenberg.org. If you are not located in the United States, you will have to check the laws of
+the country where you are located before using this eBook.
+
+COPYRIGHT INFO
+
+To the best of my knowledge all files included in this directory are excerpts from books which are considered
+in the Public Domain according to the laws of the United States.  If you are downloading these
+files outside the U.S., please consult a lawyer.
+
+Please notify me by email (talk2dfox@gmail.com) or via 
+https://github.com/talk2dfox/label-alignment if you believe that any
+such works are not in the public domain.
+
+XML ANNOTATION
+
+For each .txt file, there is a corresponding XML file, with markup indicating paragraphs as well as
+the spans which represent named entities of various types.  These annotations are 
+Copyright (C) 2024-present David C. Fox (talk2dfox@gmail.com), and are distributed
+under the terms of the MIT License.  See LICENSE in the main directory of
+https://github.com/talk2dfox/label-alignment or directly at
+https://github.com/talk2dfox/label-alignment/blob/main/LICENSE
+
+SPECIFIC FILES
+
+verne_20000_leagues.ch5.txt   excerpted from Chapter 5 of https://www.gutenberg.org/ebooks/164
+

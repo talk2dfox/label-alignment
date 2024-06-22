@@ -1,14 +1,12 @@
+"""
+common fixtures for all tests
+
+Copyright (C) 2024-present David C. Fox <talk2dfox@gmail.com>
+"""
 import pytest
 
 from pathlib import Path
 
-@pytest.fixture
-def data_path():
-    return Path('tests') / 'data'
-
-@pytest.fixture
-def anno_path(data_path):
-    return data_path / 'annotated_texts'
 
 
 # vim: et ai si sts=4   

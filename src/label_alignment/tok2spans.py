@@ -1,5 +1,6 @@
 """
-align character-offset annotations to token boundaries
+transform IOB-annotated tokens into character-offset annotations 
+suitable as input to alignment.py
 
 Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """

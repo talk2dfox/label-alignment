@@ -2,9 +2,12 @@
 align character-offset annotations to token boundaries
 
 Copyright (c) 2020 LightTag
+
+with additional changes (primarily type hints and docstrings) Copyright (c)
+2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
-from typing import Sequence, Mapping, Union, Optional
+from typing import Sequence, Mapping, Union, Optional, List
 
 from .tokenized import Tokenized
 
@@ -13,7 +16,7 @@ from .tokenized import Tokenized
 from .types import LabeledSpan
 
 def align_tokens_and_annotations_bilou(tokenized: Tokenized, 
-        annotations : Sequence[LabeledSpan]) -> list[str]:
+        annotations : Sequence[LabeledSpan]) -> List[str]:
     """
     given a sequence of annotations with keys "start" and "end" mapped to
     character offsets and "label" mapped to the annotation type,
