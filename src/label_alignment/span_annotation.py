@@ -1,3 +1,9 @@
+"""
+SpanAnnotation class used by sax2spans.py
+
+Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
+"""
+
 from typing import (
         Sequence, Mapping, Union, Optional,
 #        Sized,

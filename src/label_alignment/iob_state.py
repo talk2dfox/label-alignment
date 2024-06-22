@@ -23,6 +23,8 @@ Supports any of the following schema:
 Note: this state machine is permissive, which allows it 
 to accept any of the schema above.  However, this
 means that it cannot validate any specific scheme
+
+Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
 from abc import ABC, abstractmethod

@@ -1,3 +1,8 @@
+"""
+test routines to load my XML text with span annotations 
+
+Copyright (C) 2024-present David C. Fox <talk2dfox@gmail.com>
+"""
 import pytest
 
 

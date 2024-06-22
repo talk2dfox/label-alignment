@@ -1,3 +1,8 @@
+"""
+test routines for simple_tokenizers.py 
+
+Copyright (C) 2024-present David C. Fox <talk2dfox@gmail.com>
+"""
 import pytest
 
 import re

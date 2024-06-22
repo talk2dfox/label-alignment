@@ -1,7 +1,7 @@
 """
 Classes to parse simple XML and separate out text and spans
 
-Copyright 2024-present David Fox
+Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
 import re

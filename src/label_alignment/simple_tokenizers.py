@@ -2,7 +2,7 @@
 define simple tokenizers for testing alignment
 and tok2spans
 
-Copyright (C) 2024-present David Fox
+Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
 from typing import (

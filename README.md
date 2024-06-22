@@ -16,8 +16,8 @@
 small set of utilities to transform sequence labels to
 align them with a set of tokens, for sequence-labeling
 
-Based on https://github.com/LightTag/sequence-labeling-with-transformers
-Copyright (c) 2020 LightTag licensed under the MIT license.
+Based in part on https://github.com/LightTag/sequence-labeling-with-transformers
+which is Copyright (c) 2020 LightTag licensed under the MIT license.
 
 ## Installation
 
