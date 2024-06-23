@@ -31,6 +31,7 @@ from label_alignment.annotation.sax2spans import (
         SpanAndText,
         text_and_spans,
         span_parsed,
+        find_consec_whitespace,
         )
 
 from label_alignment.tokenization.simple_tokenizers import ws_tokenizer, wss_tokenizer

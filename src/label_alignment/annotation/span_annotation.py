@@ -43,7 +43,9 @@ class SpanAnnotation(object):
 #            )
             
         return filled
-    def __eq__(self, other : Self) -> bool:
+    def __eq__(self, other : object) -> bool:
+        if not isinstance(other, SpanAnnotation):
+            raise NotImplemented
         return (
                 (self.start == other.start)
                 and
