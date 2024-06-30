@@ -17,54 +17,30 @@ from typing import (
 
 from label_alignment import alignment
 from label_alignment import tok2spans
-from label_alignment.annotation.span_annotation import SpanAnnotation
-from label_alignment.tokenization.tokenized import Tokenized
-from label_alignment.annotation.labeled import LabeledSpan
+from label_alignment.annotation.spans.span_annotation import SpanAnnotation
+from label_alignment.tokenization.tokenized import Tokenized, StrTokenized, TokenizedIntOrStr
+from label_alignment.annotation.spans.labeled import LabeledSpan
 
-# first do a simple smoke test - will alignment run with
-# output of wss_tok?
+from label_alignment.annotation.spans.span_utils import (
+        expand_to_spaces,
+        span_anno2labeled_spans,
+        )
 
-def initial_nonspaces(text : str) -> str:
-    m : Optional[re.Match] = re.match(r'\S*', text)
-    found : str  = m.group() if m else ''
-    return found
 
-def expand_to_spaces(text : str, 
-        span_annos: Sequence[SpanAnnotation],
-        debug : bool = False) -> List[SpanAnnotation]:
-    expanded = []
-    for span in span_annos:
-        orig = text[span.start:span.end]
-        after = initial_nonspaces(text[span.end:])
-        tbefore = text[:span.start]
-        rev = ''.join(reversed(tbefore))
-        if debug:
-            print(tbefore)
-            print(rev)
-        before = initial_nonspaces(rev)
-        if debug:
-            print(f'"{orig}" "{after}" "{before}"')
-        new_span = SpanAnnotation(start=span.start - len(before), 
-                end=span.end + len(after),
-                label=span.label)
-        expanded.append(new_span)
-    return expanded
 
-def get_aligned(text : str, tokenized : Tokenized, 
-        span_annos : Sequence[SpanAnnotation]) -> List[str]:
-    annos = [span_anno.to_labeled_span() for span_anno 
-            in span_annos]
-    aligned = alignment.align_tokens_and_annotations_bilou(tokenized, annos)
-    return aligned
 
 def test_alignment_with_wss_verne(wss_tok_verne_ch5) -> None:
+    text : str
+    wss_tokenized : StrTokenized
+    span_annos : List[SpanAnnotation]
     text, wss_tokenized, span_annos = wss_tok_verne_ch5
-    aligned = get_aligned(text, wss_tokenized, span_annos)
-    nspans = list(tok2spans.iob2spans(wss_tokenized.tokens, aligned))
+    assert(span_annos[-1] == SpanAnnotation(start=1129, label='place', end=1138))
+    aligned : List[str] = alignment.align_from_spans(wss_tokenized, span_annos)
+    nspans : List[SpanAnnotation] = list(tok2spans.iob2spans(wss_tokenized.tokens, aligned))
     assert(len(nspans) == len(span_annos))
-    expanded = expand_to_spaces(text, span_annos, debug=False)
+    expanded : List[SpanAnnotation] = expand_to_spaces(text, span_annos, debug=False)
     assert(expanded == nspans)
-    realigned = get_aligned(text, wss_tokenized, nspans)
+    realigned : List[str] = alignment.align_from_spans(wss_tokenized, nspans)
     respanned = list(tok2spans.iob2spans(wss_tokenized.tokens, realigned))
     assert(len(respanned) == len(span_annos))
     print(respanned[:5])

@@ -9,13 +9,19 @@ with additional changes (primarily type hints and docstrings) Copyright (c)
 
 from typing import Sequence, Mapping, Union, Optional, List
 
-from .tokenization.tokenized import Tokenized
+from .tokenization.tokenized import TokenizedIntOrStr
 
 
 
-from .annotation.labeled import LabeledSpan
+from .annotation.spans.labeled import LabeledSpan
+from .annotation.spans.span_annotation import SpanAnnotation
 
-def align_tokens_and_annotations_bilou(tokenized: Tokenized, 
+from label_alignment.annotation.spans.span_utils import (
+        span_anno2labeled_spans,
+        )
+
+
+def align_tokens_and_annotations_bilou(tokenized: TokenizedIntOrStr, 
         annotations : Sequence[LabeledSpan]) -> List[str]:
     """
     given a sequence of annotations with keys "start" and "end" mapped to
@@ -58,5 +64,16 @@ def align_tokens_and_annotations_bilou(tokenized: Tokenized,
                     prefix = "I"  # We're inside of a multi token annotation
                 aligned_labels[token_ix] = f"{prefix}-{anno['label']}"
     return aligned_labels
+
+def align_from_spans(tokenized : TokenizedIntOrStr,                   
+        span_annos : Sequence[SpanAnnotation]) -> List[str]:     
+    """
+    wrapper adapting align to use SpanAnnotation instead
+    of LabeledSpans
+    """
+    annos = span_anno2labeled_spans(span_annos)                  
+    aligned = align_tokens_and_annotations_bilou(tokenized, annos)
+    return aligned   
+
 
 # vim: et ai si sts=4

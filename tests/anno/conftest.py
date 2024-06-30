@@ -23,16 +23,20 @@ from typing import (
         Protocol,
         )
 
-from label_alignment.annotation.span_annotation import SpanAnnotation
+from label_alignment.annotation.spans.span_annotation import SpanAnnotation
+
+from label_alignment import alignment
 
 import xml.sax 
 
-from label_alignment.annotation.sax2spans import (
+from label_alignment.annotation.spans.sax2spans import (
         SpanAndText,
         text_and_spans,
         span_parsed,
         find_consec_whitespace,
         )
+
+from label_alignment.tokenization.tokenized import Tokenized, StrTokenized, StrTokenizer, STokOut
 
 from label_alignment.tokenization.simple_tokenizers import ws_tokenizer, wss_tokenizer
 
@@ -55,11 +59,11 @@ def anno_path(data_path):
 
 
 @pytest.fixture
-def verne_ch5_excerpt(anno_path):
+def verne_ch5_excerpt(anno_path : Path) -> Path:
     return anno_path / 'verne_20000_leagues.ch5.xml'
 
 @pytest.fixture
-def v5_by_label():
+def v5_by_label() -> Dict[str, Counter[str]]:
     answers = {
             'vessel': Counter({'Abraham Lincoln': 2, 'Monroe': 1}),
             'person': Counter({'Ned Land': 4, 'Commander Farragut': 2}), 
@@ -82,7 +86,9 @@ def ws_tok():
 def wss_tok():
     return wss_tokenizer()
 
-def tokenize(src, tokenizer):
+#STokOut = Tuple[str, StrTokenized, List[SpanAnnotation]]
+def tokenize(src, 
+        tokenizer : StrTokenizer) -> STokOut:
     """
     standardize reading from XML-annotated text
     and tokenization 
@@ -93,7 +99,22 @@ def tokenize(src, tokenizer):
     return text, tokenized, annos
 
 @pytest.fixture
-def wss_tok_verne_ch5(verne_ch5_excerpt, wss_tok):
+def wss_tok_verne_ch5(verne_ch5_excerpt : Path, wss_tok : StrTokenizer) -> STokOut:
+    text : str
+    nized : StrTokenized
+    annos : List[SpanAnnotation]
     text, nized, annos = tokenize(verne_ch5_excerpt, wss_tok)
     return text, nized, annos
+
+@pytest.fixture
+def aligned_verne_ch5(wss_tok_verne_ch5 : STokOut) -> List[str]:
+    text : str
+    nized : StrTokenized
+    annos : List[SpanAnnotation]
+    text, nized, annos = wss_tok_verne_ch5
+    orig_labels : List[str] = alignment.align_from_spans(nized, 
+            annos)
+    return orig_labels
+
+
 # vim: et ai si sts=4   

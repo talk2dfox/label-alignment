@@ -101,56 +101,5 @@ class SpanAnnotation(object):
         if left < right:
             return (left, right)
         return None
-
-def partial_order(spans : Sequence[SpanAnnotation]) -> List[SpanAnnotation]:
-    """
-    given a sequence of SpanAnnotations, return a list
-    in sorted order.
-
-    Takes O(N) space and O(N log N) time
-
-    mathematically, this is a partial ordering, because
-    it uses only the start attributes
-    """
-    sorted_spans : List[SpanAnnotation] = \
-            sorted(spans, key=lambda el: el.start)
-    return sorted_spans
-
-def are_disjoint(spans : Sequence[SpanAnnotation]) -> bool:
-    """
-    verify that a sequence of SpanAnnotations has no
-    nested or overlapping spans
-    """
-    sorted_spans : List[SpanAnnotation] = partial_order(spans)
-    if len(sorted_spans) < 2:
-        return True
-    ordered : Iterator[SpanAnnotation] = iter(sorted_spans)
-    prev : SpanAnnotation = next(ordered)
-    for span in ordered:
-        if prev.intersection(span):
-            return False
-    return True
-
-def compare_annotation(spans : Sequence[SpanAnnotation],
-        other_spans : Sequence[SpanAnnotation]) \
-                -> Dict:
-    """
-    TODO: finish
-
-    Note: compare_annotation ASSUMES that each sequence
-    is disjoint 
-    """
-    ordered : List[SpanAnnotation] = partial_order(spans)
-    other_ordered : List[SpanAnnotation] = partial_order(other_spans)
-    if len(ordered) == 0 or len(other_ordered) == 0:
-        return {}
-    i = iter(spans)
-    io = iter(other_spans)
-    return {}
-
-
-
-
-
 # vim: et ai si sts=4
 

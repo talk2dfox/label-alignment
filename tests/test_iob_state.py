@@ -15,45 +15,15 @@ from typing import (
 
 from collections import OrderedDict
 
-from label_alignment.annotation.span_annotation import SpanAnnotation
+from label_alignment.annotation.spans.span_annotation import SpanAnnotation
 
-from label_alignment.iob_state import (
+from label_alignment.annotation.iob.iob_state import (
     IOBState, Inside, Outside,
     UnexpectedLabel,
     SeeReturn,
     )
 
-
-IL = List[
-        Tuple[str, #label
-            Tuple[str, # bare label
-                Optional[str] # class
-                ]
-            ]
-        ]
-
-@pytest.fixture
-def interpreted_labels() -> IL:
-    labint = [
-        ("O", ("O", None)),
-        ("I", ("I", None)),
-        ("I-PER", ("I", "PER")),
-        ("B-PER", ("B", "PER")),
-        ("U-DATE", ("U", "DATE")),
-        ("S-DATE", ("S", "DATE")),
-        ("E", ("E", None)),
-        ("E-TIME", ("E", "TIME")),
-        ("O", ("O", None)),
-        ("B-FOO-BAR", ("B", "FOO-BAR")),
-        ]
-    return labint
-#    for lab, ans in labint:
-#        yield lab, ans
-
-def test_interpret_labels(interpreted_labels : IL) -> None:
-    interp = IOBState.interpret_label
-    for lab, ans in interpreted_labels:
-        assert(interp(lab) == ans)
+#-- Fixtures and Factories ---------------------
 
 @pytest.fixture
 def starting_state() -> Outside:
@@ -75,7 +45,9 @@ def starting_state_factory() -> StartFactory:
         return Outside()
     return new_start
 
+#-- Basic Tests of Start, Outside, and Inside states -----------
 
+# helper functions for testing start/inside states
 def starting_assertions(start : IOBState) -> None:
     assert(isinstance(start, Outside))
     assert (start.end_of_previous == 0)
@@ -88,6 +60,7 @@ def inside_assertions(state : IOBState) -> None:
     assert (state.prev_token is not None)
     assert (state.current_anno is not None)
 
+# actual tests
 def test_starting_state(starting_state : IOBState) -> None:
     starting_assertions(starting_state)
 #    state, emitted = starting_state.see('
@@ -156,6 +129,10 @@ def test_advance_from_nonstart(starting_state : Outside) -> None:
     assert(state.prev_token == token)
 
 
+#-- test transitions ----------------------
+
+# first define types and fixtures
+
 TK = OrderedDict[str, # current state type,
         OrderedDict[
             str, # new state type
@@ -164,7 +141,6 @@ TK = OrderedDict[str, # current state type,
             ]
         ]
 
-# test transitions
 @pytest.fixture
 def transition_keys() -> TK:
    """

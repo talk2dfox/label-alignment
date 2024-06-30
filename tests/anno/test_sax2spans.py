@@ -21,9 +21,9 @@ from pathlib import Path
 import xml.sax 
 from xml.sax.handler import ContentHandler
 
-from label_alignment.annotation.span_annotation import SpanAnnotation
+from label_alignment.annotation.spans.span_annotation import SpanAnnotation
 
-from label_alignment.annotation.sax2spans import (
+from label_alignment.annotation.spans.sax2spans import (
         SpanAndText, text_and_spans, 
         find_consec_whitespace,
         span_parsed,

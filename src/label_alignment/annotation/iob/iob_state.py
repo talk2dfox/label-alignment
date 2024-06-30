@@ -30,7 +30,9 @@ Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 from abc import ABC, abstractmethod
 from typing import Sequence, Mapping, Union, Optional
 
-from .annotation.span_annotation import SpanAnnotation
+from ..spans.span_annotation import SpanAnnotation
+
+from .iob_labels import interpret_label
 
 
 def delim_width_before(token : str, 
@@ -130,19 +132,6 @@ class IOBState(ABC):
         """
         pass
 
-    @classmethod
-    def interpret_label(cls, 
-            label : Optional[str] = None) -> tuple[str, Optional[str]]:
-        if not label or label == " ":
-            return ("O", None)
-        wc = label.split('-', maxsplit=1)
-        which : str
-        cat : Optional[str] = None
-        which = wc[0][0]
-        if wc[1:]:
-            cat = wc[1]
-        return (which, cat)
-
 SeeReturn = tuple[IOBState, Optional[SpanAnnotation]]
 
 class Outside(IOBState):
@@ -177,7 +166,7 @@ class Outside(IOBState):
         to_emit = self.pending_anno
         which : str
         cat : Optional[str]
-        which, cat = self.interpret_label(label)
+        which, cat = interpret_label(label)
         end_of_current = self.end_of_previous + len(token) + (self.prev_token is not None)
         # outside, so possibilities are:
         # 1. stay outside
@@ -260,7 +249,7 @@ class Inside(IOBState):
         """
         which : str
         cat : Optional[str]
-        which, cat = self.interpret_label(label)
+        which, cat = interpret_label(label)
         end_of_current = self.end_of_previous + len(token) + 1
 
         # inside, so possibilities are
@@ -342,4 +331,3 @@ class Inside(IOBState):
 
 
 # vim: et ai si sts=4
-

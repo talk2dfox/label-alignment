@@ -5,16 +5,45 @@ suitable as input to alignment.py
 Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 """
 
-from typing import (Sequence, Mapping, 
-        Union, Optional, Generator
+from typing import (Iterable, Sequence, Mapping, 
+        Union, Optional, Generator, Tuple,
         )
 
-from .annotation.span_annotation import SpanAnnotation
+from .annotation.spans.span_annotation import SpanAnnotation
 
-from .iob_state import IOBState, Outside
+from .annotation.iob.iob_state import IOBState, Outside
+from .annotation.spans.labeled import LabeledText
 
-def iob2spans(tokens : Sequence[str], 
-        labels : Sequence[str],
+def zipped2labeled(zipped : Iterable[Tuple[str, str]]):
+    for token, label in zipped:
+        yield LabeledText(text=token, label=label)
+
+def iob_labeled2spans(labeled : Iterable[LabeledText],
+        default_class : str = "CHUNK"
+        ) -> Generator[SpanAnnotation, None, None]:
+    state : IOBState = Outside(default_class=default_class)
+    maybe_anno : Optional[SpanAnnotation] = None
+    to_emit: SpanAnnotation
+    for labeled_token in labeled:
+        print(labeled_token)
+        state, maybe_anno = state.see(
+                token=labeled_token["text"],
+                label=labeled_token["label"],
+                )
+        if maybe_anno is not None:
+            to_emit = maybe_anno
+            yield to_emit
+    final : Optional[SpanAnnotation] = state.end_of_text()
+    if final is not None:
+        yield final
+
+def iob_zipped2spans(zipped: Iterable[Tuple[str, str]],
+        default_class : str = "CHUNK"
+        ) -> Generator[SpanAnnotation, None, None]:
+    yield from iob_labeled2spans(zipped2labeled(zipped))
+
+def iob2spans(tokens : Iterable[str],
+        labels : Iterable[str],
         default_class : str = "CHUNK"
         ) -> Generator[SpanAnnotation, None, None]:
     """
@@ -55,19 +84,10 @@ def iob2spans(tokens : Sequence[str],
     The "-<class>" suffix is required for B and U, but optional 
     for I (except in the IOB1 and IO cases) and E.
     """
-    state : IOBState = Outside(default_class=default_class)
-    maybe_anno : Optional[SpanAnnotation] = None
-    to_emit: SpanAnnotation
-    for token, label in zip(tokens, labels):
-        state, maybe_anno = state.see(token=token, label=label)
-        if maybe_anno is not None:
-            to_emit = maybe_anno
-            yield to_emit
-    final : Optional[SpanAnnotation] = state.end_of_text()
-    if final is not None:
-        if maybe_anno is not None:
-            to_emit = maybe_anno
-            yield to_emit
+    yield from iob_zipped2spans(
+            zip(tokens, labels), 
+            default_class=default_class,
+            )
 
 
 # vim: et ai si sts=4

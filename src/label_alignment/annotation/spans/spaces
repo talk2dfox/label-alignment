@@ -1,0 +1,26 @@
+def initial_nonspaces(text : str) -> str:
+    m : Optional[re.Match] = re.match(r'\S*', text)
+    found : str  = m.group() if m else ''
+    return found
+
+def expand_to_spaces(text : str, 
+        span_annos: Sequence[SpanAnnotation],
+        debug : bool = False) -> List[SpanAnnotation]:
+    expanded = []
+    for span in span_annos:
+        orig = text[span.start:span.end]
+        after = initial_nonspaces(text[span.end:])
+        tbefore = text[:span.start]
+        rev = ''.join(reversed(tbefore))
+        if debug:
+            print(tbefore)
+            print(rev)
+        before = initial_nonspaces(rev)
+        if debug:
+            print(f'"{orig}" "{after}" "{before}"')
+        new_span = SpanAnnotation(start=span.start - len(before), 
+                end=span.end + len(after),
+                label=span.label)
+        expanded.append(new_span)
+    return expanded
+
