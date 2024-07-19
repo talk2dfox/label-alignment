@@ -28,6 +28,8 @@ Copyright (c) 2024-present David C. Fox (talk2dfox@gmail.com)
 import sys
 
 from abc import ABC, abstractmethod
+from enum import Enum
+
 from typing import (
         Sequence, Mapping, Generator,
         Dict, Tuple, Set,
@@ -36,7 +38,7 @@ from typing import (
         )
 
 from .iob_labels import (
-        ParsedLabel, interpret_label, parse_label,
+        ParsedLabel, ParsedLabelString, parse_label,
         update_label,
         Prefix, Desc, Label,
         )
@@ -72,175 +74,178 @@ DescriptionMap = Mapping[Desc, GetNextDescAndError]
 DescriptionDict = Dict[Desc, GetNextDescAndError]
 
 
-def never_error(orig : GetNextDescription) -> GetNextDescAndError:
+class BeginTag(Enum):
     """
-    function to build a 2-tuple of the label from orig and
-    an empty string (indicating no error)
+    an iob-style schema could have no B- labels (IO),
+    or B could be required (IOB2), or could be 
+    required only when necessary to separate two adjacent
+    chunks of the same type
     """
-    @wraps(orig)
-    def _inner( prev_label : ParsedLabel, 
-            current_label : ParsedLabel) -> Tuple[Desc, str]:
-#    def _inner( *args: PS.args, **kwargs : PS.kwargs ) -> Tuple[Desc, str]:
-        return (orig(prev_label, current_label), "")
-    return _inner.__call__
+    OMITTED = 0
+    REQUIRED = 1
+    DISAMBIG = 2
 
-# The following functions are used to configure implementations of Conversion
-# They must all take the same arguments: prev_label : ParsedLabel, current_label
-# : ParsedLabel and must return a 2-tuple:
-#   (prefix_desc : str, error_msg : str)
-# where prefix_desc is one of the values in prefix2description, 
-# and an empty error_msg indicates no error
-# Note: for simplicity, we use the never_error wrapper to add 
-# empty error message in cases which should never return an error.
-# functools.wraps copies the original docstring, so instead 
-# of documenting the underlying function and then updating 
-# that docstring, we just write the docstring for the 
-# underlying function as if it returned the tuple
-
-
-@never_error
-def maybe_keep_B(prev_label : ParsedLabel, current_label : ParsedLabel)  -> Desc:
-    """
-    if we are converting to a schema where B is used only when the preceding token was
-    labeled I and the current label and previous label are the same class,
-    then maybe_keep_B will return a 2-tuple of
-    (either "begin" or "inside" as appropriate, True)
-    """
-    if prev_label.prefix in valid_inside_prefixes and prev_label.chunk_class == current_label.chunk_class:
-        return "begin"
-    return "inside"
-
-def never_B(
-        prev_label : ParsedLabel, current_label : ParsedLabel
-        ) -> Tuple[Desc, str]:
-    """
-    if we are converting to a schema which has no 'B'-prefix (beginning of new 
-    chunk), then return a 2-tuple of "inside" (description of replacement
-    prefix) and an error message (empty if no ambiguity)
-    """
-    ambig : bool = (prev_label.chunk_class == current_label.chunk_class 
-            and prev_label.prefix not in valid_outgoing_prefixes)
-    msg : str = ""
-    if ambig:
-        msg = f"Two consecutive tokens of class {current_label.chunk_class}"
-        msg = msg + " which cannot be unambiguously annotated"
-        msg = msg + " in a schema with no B- prefix"
-        
-    return ("inside", msg)
-
-@never_error
-def unchanged(
-        prev_label : ParsedLabel, current_label : ParsedLabel
-        ) -> Desc:
-    """
-    generic function to return the description associated with the new_prefix
-    unchanged
-    """
-    return prefix2description[current_label.prefix]
-
-@never_error
-def drop_end(
-        prev_label : ParsedLabel, current_label : ParsedLabel
-        ) -> Desc: 
-    """
-    if converting to a schema with no last-token-of-chunk label (E/L),
-    and see one, what do we replace it with?
-
-    E would not be used for a single-token chunk, so we can
-    always replace it with I
-
-    technically, dropping the end symbol could cause ambiguity if the 
-    schema has no begin labels, but we will ignore this
-    """
-    return "inside"
-
-@never_error
-def drop_single(
-        prev_label : ParsedLabel, current_label : ParsedLabel
-        ) -> Desc:
-    """
-    if converting to a schema with no single (S/U) token, and we see
-    one, what do we replace it with?
-
-    technically, dropping the single symbol could cause ambiguity 
-    if the schema has end labels, but we will ignore this
-    """
-    return "begin"
     
+class Schema(object):
+    """
+    Schema represents a specific variant of IOB-style 
+    tagging
 
-class UnambigSchema(object):
+    The core of the representation is a dictionary
+    mapping from prefix descriptions:
+
+    ["begin", "inside", "outside", "last", "single"]
+
+    to corresponding prefixes:
+    ["B", "I", "O", "L" or "E", "S" or "U"]
+    
+    with the caveat that some descriptions may not
+    have a corresponding prefix in a given schema
+
+    Note: it is unclear whether last makes sense without
+    single (or if we only have I, O and last)
+    """
+    def __init__(self,
+            begin : BeginTag = BeginTag.REQUIRED,
+            single : Prefix = 'B',
+            last : Prefix = 'I', 
+            outside : Optional[Prefix] = 'O'
+            ) -> None:
+        """
+        create a Schema object configured as follows:
+
+        begin:
+        - REQUIRED => no chunk can start with
+          I (with default values of last and single, 
+          this is also known as IOB2).  
+        - DISAMBIG => B is only used to start a chunk
+          if the preceeding token is a chunk with the same
+          chunk class (with default last and single, this
+          is also known as IOB1)
+        - OMITTED => B is omitted.  With default last
+          and single this is IO
+
+
+        last: special tag for end of chunk.  The
+          default "I" means no special tag, though
+          in fact that means the end of a chunk can be
+          "I" (for multi-token chunk) or "B" (for 
+          single-token chunk).  Note: If begin is not
+          OMITTED, and last is not "I", then single cannot 
+          be "B"
+
+        single: special tag for single-token chunk.  Default
+          "B" means no special tag for single-token chunks.
+          (but should not be used if last is not "I")
+
+        outside: just allows a schema to use " ", "", or None
+          to tag tokens outside any chunk, with no logical
+          consequences.
+        """
+        self._mappings : Dict[Desc, Prefix] = {}
+        self._check_ambig : Dict[Prefix, Set[Desc]] = {} # reverse map used to detect duplicates
+        self.rmap : Dict[Prefix, Desc] = {} # unambiguous reverse map
+        self.begin : BeginTag = begin
+        self.last : Prefix = last
+        self.single : Prefix = single
+        self.outside : Optional[Prefix] = outside
+
+
+        self.map_and_reverse_outside(outside)
+        self.map_and_reverse('inside', 'I')
+
+        self.bare_I : bool
+
+        if self.begin == BeginTag.OMITTED:
+            self.bare_I = True
+        else:
+            self.map_and_reverse('begin', 'B')
+            self.bare_I = (
+                    True if self.begin == BeginTag.DISAMBIG 
+                    else False
+                    )
+
+        if last != 'I':
+            self.map_and_reverse('last', last)
+            if single == 'B':
+                msg = 'given prefix for last token in chunk, '
+                msg = msg + 'must have prefix for single-token chunk'
+                raise ValueError(msg)
+        if single != 'B':
+            self.map_and_reverse('single', single)
+
+        err_msg : Optional[str] = self.check_for_ambiguous_prefixes()
+        if err_msg is not None:
+            raise ValueError(err_msg)
+
     @classmethod
-    def IOB1(cls) -> "UnambigSchema":
-        return cls(bare_I=True)
+    def IOB1(cls) -> "Schema":
+        return cls(begin=BeginTag.DISAMBIG)
     @classmethod
-    def IOB2(cls) -> "UnambigSchema":
-        return cls()
+    def IOB2(cls) -> "Schema":
+        return cls(begin=BeginTag.REQUIRED)
     @classmethod
-    def std_explicit(cls) -> "UnambigSchema":
+    def std_explicit(cls) -> "Schema":
         """
         use BILOU from annotation as start or
         end for all conversions
         """
         return cls(last='L', single='U')
 
-    def is_explicit(self) -> bool:
-        if ('single' in self.mappings 
-                and 'last' in self.mappings):
+    def is_unambig(self) -> bool:
+        if self.begin in (BeginTag.DISAMBIG, BeginTag.REQUIRED):
             return True
         return False
 
-    def __init__(self, bare_I : bool = False,
-            last : Prefix = 'I',
-            single : Prefix = 'B',
-            outside : Prefix = 'O') -> None:
-        """
-        describe any unambig schema above
+    def is_explicit(self) -> bool:
+        desc : Desc
+        for desc in ('begin', 'single', 'last'):
+            if desc not in self._mappings:
+                return False 
+        return True
 
-        * bare_I - (is bare I allowed (IOB1) or not (IOB2)
-        * last - label for last token in span
-            * I means no special token for last
-            * otherwise pass either E or L 
-        * single - special label for annotation
-          spanning only a single token 
-            * B means no special token, just B
-            * otherwise pass either U or S
-        * outside: 'O' or ' ' or ''
-
-        With defaults, => IOB2
-        bare_I == True, but rest default => IOB1
-        """
-        super().__init__()
-        self.bare_I = bare_I
-        self.last = last
-        self.single = single
-        self.mappings : Dict[Desc, Prefix] = {}
-        self.check_ambig : Dict[Prefix, Set[Desc]] = {} # reverse map used to detect duplicates
-        self.rmap : Dict[Prefix, Desc] = {} # unambiguous
-        # reverse map 
-        self.map_and_reverse('begin', 'B')
-        self.map_and_reverse('inside', 'I')
-        if last != 'I':
-            self.map_and_reverse('last', last)
-        if single != 'B':
-            self.map_and_reverse('single', single)
-        self.map_and_reverse('outside', outside)
-        err_msg : Optional[str] = self.check_for_ambiguous_prefixes()
-        if err_msg is not None:
-            raise ValueError(err_msg)
+    def desc2prefix(self, description : Desc) -> Prefix:
+        op : Optional[Prefix] = self._mappings.get(description)
+        return op
 
     def map_and_reverse(self, description : Desc, 
             prefix : Prefix) -> None:
-        self.mappings[description] = prefix
-        self.check_ambig.setdefault(prefix, set()).add(description)
+        """
+        add a mapping from description to prefix
+        and add/update the reverse entry in check_ambig
+        """
+        self._mappings[description] = prefix
+        self._check_ambig.setdefault(prefix, set()).add(description)
+    def map_and_reverse_outside(self, 
+            prefix : Prefix) -> None:
+        """
+        add a mapping from "outside" to optional prefix
+        and add/update the reverse entry in check_ambig
+        """
+        description : str = "outside"
+        # allow desc2prefix to distinguish between
+        # no mapping and mapping of outside to None
+        eff_prefix : str
+        if prefix is None:
+            eff_prefix = ""
+            # omit from _mappings, but still add to _check_ambig
+            # with effective prefix
+        else:
+            eff_prefix = prefix
+            self._mappings[description] = eff_prefix
+        self._check_ambig.setdefault(eff_prefix, set()).add(description)
+
 
     def check_for_ambiguous_prefixes(self) -> Optional[str]:
         """
         if any character prefixes are ambiguous, return 
-        error message, otherwise return None
+        error message, otherwise construct the
+        unique reverse map and return None
         """
-        chars = sorted(set(self.check_ambig))
+        chars = sorted(set(self._check_ambig))
+        rmap : Dict[Prefix, Desc] = {} # unambiguous reverse map
         for char in chars:
-            descs = self.check_ambig[char]
+            descs = self._check_ambig[char]
             if len(descs) > 1:
                 msg = 'multiple classes ('
                 msg = msg + ', '.join(sorted(descs)) + ') '
@@ -248,151 +253,304 @@ class UnambigSchema(object):
                 print(msg)
                 return msg
             else:
-                self.rmap[char] = list(descs)[0]
+                rmap[char] = list(descs)[0]
+        self.rmap = rmap
         return None
 
-# prefix to description is now generic, so we can just use the
-# module-level prefix2description
-#    def prefix2desc(self, char : str) -> str:
-#        return self.rmap[char]
+    def handles_desc(self, description : Desc) -> bool:
+        """
+        does this schema have a prefix specific to the
+        given description?
+        """
+        return description in self._mappings
 
-#    def chars2descs(self, chars : Union[str, Sequence[str]]) -> List[str]:
-#        return [self.rmap[char] for char in chars]]
-#    def desc2chars(self, desc : str) -> str:
-#        return self.mappings[desc]
 
-# converting the other way is not standard because
-# (a) there are two options each for prefixes for single/unique and
-#     end/last
-# (b) some output schema do not use all descriptions and therefore
-#     their description-to-prefix mapping may be missing those
-#     descriptions
-        
 
 
 # conversions
+def noop_warning(reason : str, 
+        specific : bool = True) -> str:
+    msg : str = f"Warning: given schema {reason}, "
+    if specific:
+        conv = "this conversion"
+        noop = "a no-op"
+    else:
+        conv = "all conversions"
+        noop = "no-ops"
+    msg = msg + f"so {conv} will be {noop}"
+    sys.stderr.write(msg)
+    return msg
 
 class Conversion(ABC):
     @abstractmethod
     def convert(self, orig : Sequence[Label]) -> Generator[Label, None, None]:
+        """
+        convert IOB-style labels from current schema
+        to a new one (with both schema specified
+        in constructor of subclass implementing convert
+        """
         pass
 
+    def noop_convert(self, orig : Sequence[Label]) -> Generator[Label, None, None]:
+        """
+        in some cases, factory creating a concrete subclass
+        to implement convert may only know when convert is 
+        called whether that conversion is a no-op.  If
+        so, it can use this implementation
+        """
+        label : Label
+        for label in orig:
+            yield label
 
-class ConversionImpl(object):
+class ConversionImplBase(object):
     """
-    ConversionImpl implements the conversion as a finite state
-    transducer
+    common elements implementation of Schema conversion
+    implemented as a finite state transducer.
     """
     def __init__(self, 
-            call_by_description : DescriptionMap,
-            target : UnambigSchema,
+            target : Schema,
             ) -> None:
         super().__init__()
-        self.prev : ParsedLabel = ParsedLabel(prefix="O")
-        self.target : UnambigSchema = target
-        self.call_by_description : DescriptionDict = dict(call_by_description.items())
-    def current2prefix(self, 
-            current_label : ParsedLabel) -> Tuple[Prefix, str, str]:
-        """
-        given description, return corresponding prefix
-        character, name of function called, and 
-        optional error message (empty if no error)
-        """
-        desc : Desc = prefix2description[current_label.prefix]
-        to_call = self.call_by_description.get(desc,
-                unchanged)
-        new_desc : Desc
-        error_msg : str
-        new_desc, error_msg = to_call(self.prev, current_label)
-        return new_desc, to_call.__name__, error_msg
-            
+        self.prev : ParsedLabel = ParsedLabelString(prefix="O")
+        self.prev_desc = 'outside'
+        self.target : Schema = target
+
     def next_label(self, current : ParsedLabel,
             ) -> ParsedLabel:
-        fn_name : str
-        new_desc : Desc
-        new_desc, fn_name = self.next_description(current)
+        desc : Desc = self.current_description(current)
+        print('orig desc:', desc)
+        new_desc : Desc = self.next_description(current,
+                current_desc=desc)
+#        print(f'next label for {new_desc!r}')
+        print('new desc:', new_desc)
         self.prev = current
-        label = self.description2label(current,
-                new_desc, fn_name)
-        return label
+        self.prev_desc = desc # or should this be new_desc!?
+        parsed : ParsedLabel
+        parsed = self.description2label(current,
+                new_desc)
+        return parsed
 
+    @classmethod
+    def prefix2desc(cls, p : Prefix):
+        desc : Desc = prefix2description[p]
+        return desc
+
+    @classmethod
+    def current_description(cls, current : ParsedLabel,
+            ) -> Desc:
+        """
+        get current description from current prefix
+        """
+        return cls.prefix2desc(current.prefix)
+
+    @abstractmethod
     def next_description(self, current : ParsedLabel,
-            ) -> Tuple[Desc, str]:
+            current_desc : Desc,
+            ) -> Desc:
         """
-        given current parsed label for original explicit
-        mapping, handle any errors and return converted
-        description in the target schema
-        label in the target schema
+        given current parsed label in original schema,
+        and corresponding description,
+        find new description in the target schema,
+        handle any errors and return the new description
         """
-        desc : Desc = prefix2description[current.prefix]
-        new_desc : Desc
-        error_msg : str
-        fn_name : str
-        new_desc, fn_name, error_msg = (
-                self.current2prefix(current)
-                )
-        if error_msg:
-            sys.stderr.write(error_msg)
-            sys.stderr.write('\n')
-            sys.stdout.flush()
-            sys.stderr.flush()
-        return new_desc, fn_name
+        pass
 
     def description2label(self, current : ParsedLabel,
             new_desc : Desc,
-            fn_name : str,
             ) -> ParsedLabel:
-        maybe_c : Optional[Prefix]
-        maybe_c = self.target.mappings.get(new_desc)
-        if maybe_c is None:
-            msg = 'No prefix associated with description {desc} returned by {to_call_name} for label {label}'
-            msg = msg.format(desc=new_desc,
-                    to_call_name=fn_name,
-                    label=current)
-            raise ValueError(msg)
-
+        prefix : Prefix
+        prefix = self.target.desc2prefix(new_desc)
         updated : ParsedLabel = update_label(current,
-                new_prefix=maybe_c)
+                new_prefix=prefix)
+#        print('updated label:', updated)
         return updated
 
 
+class FromExplicitConversionImpl(ConversionImplBase):
+    """
+    FromExplicitConversionImpl implements the conversion from
+    an explicit Schema to an arbitrary schema as a finite state
+    transducer.
+
+    All Schema must include inside and outside, so 
+    on conversion, inside -> inside, and outside -> outside
+
+    If no "last", then last -> I
+
+    If we see begin and schema.begin == REQUIRED, then 
+    we map begin -> begin.
+
+    If we see begin but schema.begin != REQUIRED, then
+    we need to check 
+
+    (a) whether prev prefix was an inside prefix, and
+    (b) whether the previous chunk class matches the current one
+
+    if both are true, then we either map begin -> begin 
+    (when schema.begin == DISAMBIG) or raise an error
+    (when schema.begin == OMIT), otherwise
+
+    Finally, if no "single", then single -> begin, and we then 
+    apply the logic above for begin
+
+    Note: 
+    1. the only logic which depends on previous label is begin
+    2. the actual conditionals are the same regardless of
+    whether schema.begin is DISAMBIG or OMIT)
+
+    Therefore, we can implement that logic once in 
+    the translation, rather than in the individual transition 
+    functions.  In fact, since the mappings themselves are 
+    trivial apart from this logic, we don't need the transition
+    functions at all.
+
+    Finally, we don't need to separate UnambigSchema from Schema
+    or have separate conversion implementations for the two cases.
+    """
+    def __init__(self, 
+            target : Schema,
+            ) -> None:
+        super().__init__(target)
+
+    def safe_to_drop_begin(self, current : ParsedLabel) -> bool:
+        """
+        is it safe to drop begin from current label and
+        replace with inside?
+        """
+        ambig : bool = (
+                (self.prev_desc not in ('last', 'single', 'outside'))
+
+                and 
+
+                (self.prev.chunk_class == current.chunk_class )
+            )
+        return not ambig
+
+    def begin_logic(self, current : ParsedLabel) -> Desc:
+        """
+        central place to handle begin logic
+        """
+        if self.target.begin == BeginTag.REQUIRED:
+            return "begin"
+        return self.drop_begin(current)
+            
+
+    def drop_begin(self, 
+            current : ParsedLabel
+            ) -> Desc:
+        """
+        drop begin or raise error
+        """
+        safe : bool = self.safe_to_drop_begin(current=current)
+        if safe:
+            return 'inside'
+        if self.target.begin == BeginTag.DISAMBIG:
+            return 'begin'
+        msg = f"Two consecutive {current.chunk_class} chunks"
+        msg = msg + " cannot be annotated"
+        msg = msg + " in a schema with no B- prefix"
+        raise ValueError(msg)
+
+    def next_description(self, current : ParsedLabel,
+            current_desc : Desc,
+            ) -> Desc:
+        """
+        given current parsed label in original schema,
+        and corresponding description,
+        find new description in the target schema,
+        handle any errors and return the new description
+        """
+#        print('prefix: ', current.prefix)
+#        print('yields description ', desc)
+        if current_desc in ('inside', 'outside'):
+            return current_desc
+        if current_desc in 'begin':
+            return self.begin_logic(current)
+        elif current_desc == 'last':
+            if self.target.last != 'I':
+                return current_desc
+            return 'inside'
+        if current_desc == 'single':
+            if self.target.single != 'B':
+                return current_desc
+            return self.begin_logic(current)
+
+        raise ValueError(f'Unexpected description {desc}')
+        # this should never happen unless there is a bug
+        # or misconfiguration in Schema or here, 
+        # but is a safe way to satisfy type-checkers
+
+
+class RestoreBeginConversionImpl(object):
+    def __init__(self, 
+            target : Schema,
+            ) -> None:
+        super().__init__(target)
+
+    def next_description(self, current : ParsedLabel,
+            current_desc : Desc,
+            ) -> Desc:
+        """
+        given current parsed label in original schema,
+        and corresponding description,
+        find new description in the target schema,
+        handle any errors and return the new description
+        """
+        if current_desc != 'inside':
+            return current_desc
+        if self.prev_desc in ('outside', 'last', 'single'):
+            # current "inside" unambiguously begins a new chunk
+            # so we only convert it to "begin" if we are
+            # always requiring "begin"
+            if self.target.begin == BeginTag.REQUIRED:
+                return 'begin'
+            return current_desc
+        if self.prev_desc in ('inside', 'begin'):
+                current
+
+class RestoreBegin(Conversion):
+    """
+    implements Conversion.convert to add
+    begin tags to tokenized text tagged
+    in an IO schema 
+    """
+    def __init__(self, 
+            schema : Schema,
+            begin : BeginTag = BeginTag.REQUIRED,
+            noop_msg : str = ""):
+        self.orig_schema : Schema = schema
+        self.begin_target : BeginTag = begin
+        self.noop_msg = noop_msg
+    def convert(self, 
+            orig_labels : Sequence[Label]
+            ) -> Generator[Label, None, None]:
+        if self.noop_msg:
+            sys.stderr.write(self.noop_msg)
+            return noop_convert(orig_labels=orig_labels)
 
 
 
-class Explicit2Unambig(Conversion):
-    def __init__(self, explicit : UnambigSchema,
-            unambig : UnambigSchema) -> None:
+
+
+class Explicit2ArbitrarySchema(Conversion):
+    def __init__(self, explicit : Schema,
+            target : Schema) -> None:
         if not explicit.is_explicit():
             raise ValueError('schema called explicit is not')
-        desc2call : DescriptionDict = {}
-        if unambig.bare_I:
-            desc2call['begin'] = maybe_keep_B
-        if unambig.last == 'I':
-            desc2call['last'] = drop_end
-        if unambig.single == 'B':
-            desc2call['single'] = drop_single
-        self.call_by_description : DescriptionDict = desc2call
-        self.unambig : UnambigSchema = unambig
-#        self.trans = {}
-#        for desc in explicit.mappings:
-#            maybe_c = self.unambig.mappings.get(desc)
-#            if maybe_c is None:
-#                pass
-#            else:
-#                self.trans[desc] = maybe_c
+        self.target : Schema = target
 
     def convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
-        prev : ParsedLabel = ParsedLabel(prefix="O")
         label : str
-        converter : ConversionImpl = ConversionImpl(
-                self.call_by_description,
-                self.unambig)
+        print('in convert')
+        converter : FromExplicitConversionImpl = \
+                FromExplicitConversionImpl(self.target)
         for label in orig_labels:
+            print('orig:', label)
             parsed : ParsedLabel = parse_label(label)
+            print(parsed)
             new_parsed : ParsedLabel = converter.next_label(parsed)
-            yield new_parsed.as_string()
-
-
+            print(new_parsed)
+            yield new_parsed.as_label()
 
 
 
@@ -402,13 +560,68 @@ class FromExplicit:
     schema to different unambiguous schemas
     """
 
-    def __init__(self, explicit : Optional[UnambigSchema] = None):
-        explicit = explicit or UnambigSchema.std_explicit()
+    def __init__(self, explicit : Optional[Schema] = None):
+        explicit = explicit or Schema.std_explicit()
         if not explicit.is_explicit():
             raise ValueError('schema called explicit is not')
         self.explicit = explicit
-    def to_unambig(self, unambig : UnambigSchema) -> Conversion:
-        return Explicit2Unambig(self.explicit, unambig)
+    def to_arbitrary(self, unambig : Schema) -> Conversion:
+        return Explicit2ArbitrarySchema(self.explicit, unambig)
+
+class FromNonExplicit:
+    """
+    factory object returning conversions from
+    a non-explicit schema to a more explict one.
+    """
+
+    def __init__(self, schema : Schema) -> None:
+        if schema.is_explicit():
+            noop_warning("is already explicit",
+                    specific=False)
+        self.orig_schema = schema
+
+    def restore_begin(self, begin : BeginTag = BeginTag.REQUIRED) -> Conversion:
+        """
+        return an object with a conversion method
+        which will restore begin tags to a schema without
+        them (typically IO-only)
+        """
+        if begin == BeginTag.OMITTED:
+            msg = 'to restore begin, must specify '
+            msg = 'a value of begin other than OMITTED'
+            raise ValueError(msg)
+        noop_msg : str = ""
+        if self.orig_schema.begin == BeginTag.REQUIRED:
+            noop_msg = noop_warning('requires begin tags',
+                    specific=True)
+        elif (
+                self.orig_schema.begin == BeginTag.DISAMBIG
+
+                and
+
+                begin == BeginTag.DISAMBIG
+                ):
+            noop_msg = noop_warning('already uses begin tags for disambiguation', specific=True)
+
+        return RestoreBegin(schema=self.orig_schema,
+                begin=begin,
+                noop_msg=noop_msg)
+
+
+class FromIO:
+    """
+    factory object returning conversions from
+    an IO schema to schema which include a B tag
+    (whether always required or only when required
+    to disambiguate)
+    """
+
+    def __init__(self, io_schema : Schema) -> None:
+        if not explicit.is_explicit():
+            raise ValueError('schema called explicit is not')
+        self.explicit = explicit
+    def to_arbitrary(self, unambig : Schema) -> Conversion:
+        return Explicit2ArbitrarySchema(self.explicit, unambig)
 
 
 # vim: et ai si sts=4

@@ -32,7 +32,9 @@ from typing import Sequence, Mapping, Union, Optional
 
 from ..spans.span_annotation import SpanAnnotation
 
-from .iob_labels import interpret_label
+from .iob_labels import (Label, ChunkClass, 
+        ParsedLabel, parse_label,
+        interpret_label)
 
 
 def delim_width_before(token : str, 
@@ -154,7 +156,7 @@ class Outside(IOBState):
         return self.pending_anno
 
     def see(self, token : str,
-            label : Optional[str] = None) -> SeeReturn:
+            label : Label) -> SeeReturn:
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -163,10 +165,15 @@ class Outside(IOBState):
         instance), and
         (2) when appropriate, the next complete SpanAnnotation.
         """
+        print("in see, label is ", repr(label), type(label))
         to_emit = self.pending_anno
-        which : str
-        cat : Optional[str]
-        which, cat = interpret_label(label)
+        which : Prefix
+        cat : ChunkClass
+        p : ParsedLabel
+        p = parse_label(label)
+        print("in see, parsed_label is ", p, type(p))
+        which, cat = p.interpret()
+        print("in see, which is ", repr(which), type(which))
         end_of_current = self.end_of_previous + len(token) + (self.prev_token is not None)
         # outside, so possibilities are:
         # 1. stay outside
@@ -238,7 +245,7 @@ class Inside(IOBState):
         return self.current_anno
 
     def see(self, token : str,
-            label : Optional[str] = None) -> SeeReturn:
+            label : Label = None) -> SeeReturn:
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -247,9 +254,11 @@ class Inside(IOBState):
         instance), and
         (2) when appropriate, the next complete SpanAnnotation.
         """
+        print('in see', token, label, type(label))
         which : str
         cat : Optional[str]
         which, cat = interpret_label(label)
+        print('which, cat = ', which, cat)
         end_of_current = self.end_of_previous + len(token) + 1
 
         # inside, so possibilities are
