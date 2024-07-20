@@ -204,7 +204,7 @@ class Schema(object):
                 return False 
         return True
 
-    def desc2prefix(self, description : Desc) -> Prefix:
+    def desc2prefix(self, description : Desc) -> Optional[Prefix]:
         op : Optional[Prefix] = self._mappings.get(description)
         return op
 
@@ -217,7 +217,7 @@ class Schema(object):
         self._mappings[description] = prefix
         self._check_ambig.setdefault(prefix, set()).add(description)
     def map_and_reverse_outside(self, 
-            prefix : Prefix) -> None:
+            prefix : Optional[Prefix]) -> None:
         """
         add a mapping from "outside" to optional prefix
         and add/update the reverse entry in check_ambig
@@ -270,7 +270,7 @@ class Schema(object):
 # conversions
 def noop_warning(reason : str, 
         specific : bool = True) -> str:
-    msg : str = f"Warning: given schema {reason}, "
+    msg : str = f"Warning: given original schema {reason}, "
     if specific:
         conv = "this conversion"
         noop = "a no-op"
@@ -283,7 +283,7 @@ def noop_warning(reason : str,
 
 class Conversion(ABC):
     @abstractmethod
-    def convert(self, orig : Sequence[Label]) -> Generator[Label, None, None]:
+    def convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
         """
         convert IOB-style labels from current schema
         to a new one (with both schema specified
@@ -291,7 +291,7 @@ class Conversion(ABC):
         """
         pass
 
-    def noop_convert(self, orig : Sequence[Label]) -> Generator[Label, None, None]:
+    def noop_convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
         """
         in some cases, factory creating a concrete subclass
         to implement convert may only know when convert is 
@@ -299,7 +299,7 @@ class Conversion(ABC):
         so, it can use this implementation
         """
         label : Label
-        for label in orig:
+        for label in orig_labels:
             yield label
 
 class ConversionImplBase(object):
@@ -341,7 +341,7 @@ class ConversionImplBase(object):
         """
         get current description from current prefix
         """
-        return cls.prefix2desc(current.prefix)
+        return cls.prefix2desc(current.get_prefix())
 
     @abstractmethod
     def next_description(self, current : ParsedLabel,
@@ -358,7 +358,7 @@ class ConversionImplBase(object):
     def description2label(self, current : ParsedLabel,
             new_desc : Desc,
             ) -> ParsedLabel:
-        prefix : Prefix
+        prefix : Optional[Prefix]
         prefix = self.target.desc2prefix(new_desc)
         updated : ParsedLabel = update_label(current,
                 new_prefix=prefix)
@@ -422,7 +422,7 @@ class FromExplicitConversionImpl(ConversionImplBase):
 
                 and 
 
-                (self.prev.chunk_class == current.chunk_class )
+                (self.prev.category() == current.category() )
             )
         return not ambig
 
@@ -446,7 +446,7 @@ class FromExplicitConversionImpl(ConversionImplBase):
             return 'inside'
         if self.target.begin == BeginTag.DISAMBIG:
             return 'begin'
-        msg = f"Two consecutive {current.chunk_class} chunks"
+        msg = f"Two consecutive {current.category()} chunks"
         msg = msg + " cannot be annotated"
         msg = msg + " in a schema with no B- prefix"
         raise ValueError(msg)
@@ -475,13 +475,13 @@ class FromExplicitConversionImpl(ConversionImplBase):
                 return current_desc
             return self.begin_logic(current)
 
-        raise ValueError(f'Unexpected description {desc}')
+        raise ValueError(f'Unexpected description {current_desc}')
         # this should never happen unless there is a bug
         # or misconfiguration in Schema or here, 
         # but is a safe way to satisfy type-checkers
 
 
-class RestoreBeginConversionImpl(object):
+class RestoreBeginConversionImpl(ConversionImplBase):
     def __init__(self, 
             target : Schema,
             ) -> None:
@@ -505,8 +505,7 @@ class RestoreBeginConversionImpl(object):
             if self.target.begin == BeginTag.REQUIRED:
                 return 'begin'
             return current_desc
-        if self.prev_desc in ('inside', 'begin'):
-                current
+        return current_desc
 
 class RestoreBegin(Conversion):
     """
@@ -521,12 +520,26 @@ class RestoreBegin(Conversion):
         self.orig_schema : Schema = schema
         self.begin_target : BeginTag = begin
         self.noop_msg = noop_msg
-    def convert(self, 
-            orig_labels : Sequence[Label]
-            ) -> Generator[Label, None, None]:
+        self.target = Schema(begin=begin,
+                single=schema.single,
+                last=schema.last,
+                outside=schema.outside,
+                )
+    def convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
         if self.noop_msg:
             sys.stderr.write(self.noop_msg)
-            return noop_convert(orig_labels=orig_labels)
+            yield from self.noop_convert(orig_labels=orig_labels)
+        label : Label
+        converter : RestoreBeginConversionImpl = \
+                RestoreBeginConversionImpl(self.target)
+        for label in orig_labels:
+            print('orig:', label)
+            parsed : ParsedLabel = parse_label(label)
+            print(parsed)
+            new_parsed : ParsedLabel = converter.next_label(parsed)
+            print(new_parsed)
+            yield new_parsed.as_label()
+
 
 
 
@@ -540,7 +553,7 @@ class Explicit2ArbitrarySchema(Conversion):
         self.target : Schema = target
 
     def convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
-        label : str
+        label : Label
         print('in convert')
         converter : FromExplicitConversionImpl = \
                 FromExplicitConversionImpl(self.target)
@@ -607,21 +620,6 @@ class FromNonExplicit:
                 begin=begin,
                 noop_msg=noop_msg)
 
-
-class FromIO:
-    """
-    factory object returning conversions from
-    an IO schema to schema which include a B tag
-    (whether always required or only when required
-    to disambiguate)
-    """
-
-    def __init__(self, io_schema : Schema) -> None:
-        if not explicit.is_explicit():
-            raise ValueError('schema called explicit is not')
-        self.explicit = explicit
-    def to_arbitrary(self, unambig : Schema) -> Conversion:
-        return Explicit2ArbitrarySchema(self.explicit, unambig)
 
 
 # vim: et ai si sts=4

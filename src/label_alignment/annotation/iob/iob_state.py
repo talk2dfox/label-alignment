@@ -32,7 +32,7 @@ from typing import Sequence, Mapping, Union, Optional
 
 from ..spans.span_annotation import SpanAnnotation
 
-from .iob_labels import (Label, ChunkClass, 
+from .iob_labels import (Prefix, Label, ChunkClass, 
         ParsedLabel, parse_label,
         interpret_label)
 
@@ -123,7 +123,7 @@ class IOBState(ABC):
 
     @abstractmethod
     def see(self, token : str, 
-            label : Optional[str] = None) -> tuple["IOBState", Optional[SpanAnnotation]]:
+            label : Label = None) -> "SeeReturn":
         """
         given next token and label,
         update the offset of the end of the previous token,
@@ -156,7 +156,7 @@ class Outside(IOBState):
         return self.pending_anno
 
     def see(self, token : str,
-            label : Label) -> SeeReturn:
+            label : Label = None) -> SeeReturn:
         """
         given next token and label,
         update the offset of the end of the previous token,

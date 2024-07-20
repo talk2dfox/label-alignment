@@ -12,6 +12,8 @@ from typing import (
         TypedDict, NotRequired
         )
 
+from ..iob.iob_labels import Label
+
 class LabeledSpan(TypedDict):
     """
     alignment routine expects dictionary-like
@@ -27,6 +29,6 @@ class LabeledSpan(TypedDict):
 
 class LabeledText(TypedDict):
     text : str
-    label : NotRequired[str]
+    label : NotRequired[Label]
 
 # vim: et ai si sts=4

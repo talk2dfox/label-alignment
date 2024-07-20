@@ -30,6 +30,12 @@ class ParsedLabel(ABC):
     @abstractmethod
     def interpret(self) -> Tuple[str, ChunkClass]:
         pass
+    @abstractmethod
+    def category(self) -> ChunkClass:
+        pass
+    @abstractmethod
+    def get_prefix(self) -> Prefix:
+        pass
 
 
 
@@ -43,12 +49,21 @@ class ParsedLabelString(ParsedLabel):
         return self.prefix
     def interpret(self) -> Tuple[str, ChunkClass]:
         return (self.prefix.strip() or "O", self.chunk_class)
+    def category(self) -> ChunkClass:
+        return self.chunk_class
+    def get_prefix(self) -> Prefix:
+        return self.prefix
 
 class ParsedLabelOutside(ParsedLabel):
     def as_label(self) -> Label:
         return None
     def interpret(self) -> Tuple[str, ChunkClass]:
         return ("O", None)
+    def category(self) -> ChunkClass:
+        return None
+    def get_prefix(self) -> Prefix:
+        return "O"
+
 
 
 def from_interpreted(prefix : Prefix, chunk_class : ChunkClass = None):
@@ -86,9 +101,9 @@ def parse_label(label : Label) -> ParsedLabel:
     prefix, cat = interpret_string_label(label)
     return ParsedLabelString(prefix=prefix, chunk_class=cat)
 
-def update_label(orig_parsed : ParsedLabel, new_prefix : Prefix):
+def update_label(orig_parsed : ParsedLabel, new_prefix : Optional[Prefix]):
     if new_prefix is None:
         return ParsedLabelOutside()
     return ParsedLabelString(prefix=new_prefix, 
-            chunk_class=orig_parsed.chunk_class)
+            chunk_class=orig_parsed.category())
 # vim: et ai si sts=4

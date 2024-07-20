@@ -35,7 +35,7 @@ from label_alignment.annotation.iob.iob_conversion import (
         )
 
 from label_alignment.annotation.iob.iob_labels import (
-        Label, Prefix, 
+        Label, Prefix, ChunkClass,
         ParsedLabel, ParsedLabelString, ParsedLabelOutside, 
         parse_label,
         interpret_label,
@@ -83,7 +83,7 @@ def explicit_to_arbitrary_labeled(target : Schema,
     # convert to target schema
     from_explicit = FromExplicit()
     converter : Conversion = from_explicit.to_arbitrary(target)
-    target_labels : Generator[str, None, None] = converter.convert(aligned)
+    target_labels : Generator[Label, None, None] = converter.convert(aligned)
     return map(lambda labtok : LabeledText(text=labtok[0],
         label=labtok[1]), zip(nized.tokens, target_labels))
 
@@ -192,8 +192,8 @@ class TestExplicitOrNot:
             assert(target.begin == BeginTag.OMITTED)
             pytest.skip('skipping explicit2explicit b/c target is not explicit')
             return
-        orig_labels : List[str] = aligned_verne_ch5
-        trans_labels : List[str] = list(to_target.convert(orig_labels))
+        orig_labels : List[Label] = aligned_verne_ch5
+        trans_labels : List[Label] = list(to_target.convert(orig_labels))
         # added a mapping from O to str(outside), which fixes that problem, 
         # and fixed a bug in begin_logic which was failing to keep begin
         # tags when begin==BeginTag.REQUIRED.
@@ -226,10 +226,6 @@ def test_last_and_single(last : Prefix, single : Prefix):
 def test_last_without_single(last : Prefix, single : Prefix):
     target : Schema = Schema(last=last, single=single)
 
-@pytest.mark.parametrize("last", ["I"])
-@pytest.mark.parametrize("single", ["B", "S", "U"])
-def test_last_without_single(last : Prefix, single : Prefix):
-    target : Schema = Schema(last=last, single=single)
 
 
 #@pytest.mark.parametrize("bare_I,last,single,outside", 
