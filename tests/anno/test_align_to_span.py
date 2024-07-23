@@ -30,6 +30,14 @@ from label_alignment.annotation.spans.span_utils import (
 
 
 def test_alignment_with_wss_verne(wss_tok_verne_ch5) -> None:
+    """
+    1. read text with spans, 
+    2. tokenize with simple split on white space (wss)
+    3. align to produce explicit bilou annotation
+    4. use iob2spans to convert back to spans
+    5. compare with original spans expanded to spaces
+    6. repeat 3/4 and compare with new reconverted spans
+    """
     text : str
     wss_tokenized : StrTokenized
     span_annos : List[SpanAnnotation]

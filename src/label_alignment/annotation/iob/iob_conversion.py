@@ -180,9 +180,15 @@ class Schema(object):
 
     @classmethod
     def IOB1(cls) -> "Schema":
+        """
+        factory function for IOB1 schema (see doc for __init__ above)
+        """
         return cls(begin=BeginTag.DISAMBIG)
     @classmethod
     def IOB2(cls) -> "Schema":
+        """
+        factory function for IOB2 schema (see doc for __init__ above)
+        """
         return cls(begin=BeginTag.REQUIRED)
     @classmethod
     def std_explicit(cls) -> "Schema":
@@ -193,11 +199,19 @@ class Schema(object):
         return cls(last='L', single='U')
 
     def is_unambig(self) -> bool:
+        """
+        can this schema unambiguously represent any unnested spans coinciding
+        with the token boundaries
+        """
         if self.begin in (BeginTag.DISAMBIG, BeginTag.REQUIRED):
             return True
         return False
 
     def is_explicit(self) -> bool:
+        """
+        is this schema fully explicit (including tags for first/last tokens
+        and single when token is both)
+        """
         desc : Desc
         for desc in ('begin', 'single', 'last'):
             if desc not in self._mappings:
@@ -205,7 +219,10 @@ class Schema(object):
         return True
 
     def desc2prefix(self, description : Desc) -> Optional[Prefix]:
-        op : Optional[Prefix] = self._mappings.get(description)
+        """
+        convenient access to mapping from description to prefix or None
+        """
+        op : Prefix = self._mappings.get(description)
         return op
 
     def map_and_reverse(self, description : Desc, 
@@ -270,6 +287,9 @@ class Schema(object):
 # conversions
 def noop_warning(reason : str, 
         specific : bool = True) -> str:
+    """
+    common elements of warning when a conversion is a NO-OP
+    """
     msg : str = f"Warning: given original schema {reason}, "
     if specific:
         conv = "this conversion"
@@ -282,6 +302,10 @@ def noop_warning(reason : str,
     return msg
 
 class Conversion(ABC):
+    """
+    abstract base class defining interface for object
+    capable of converting from one schema to another
+    """
     @abstractmethod
     def convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
         """
@@ -293,10 +317,8 @@ class Conversion(ABC):
 
     def noop_convert(self, orig_labels : Sequence[Label]) -> Generator[Label, None, None]:
         """
-        in some cases, factory creating a concrete subclass
-        to implement convert may only know when convert is 
-        called whether that conversion is a no-op.  If
-        so, it can use this implementation
+        trivial implementation of convert when it is a no-op (typically adding
+        begin tags to a schema which already uses them)
         """
         label : Label
         for label in orig_labels:
@@ -304,7 +326,7 @@ class Conversion(ABC):
 
 class ConversionImplBase(object):
     """
-    common elements implementation of Schema conversion
+    common aspects of Schema conversion
     implemented as a finite state transducer.
     """
     def __init__(self, 
@@ -482,6 +504,10 @@ class FromExplicitConversionImpl(ConversionImplBase):
 
 
 class RestoreBeginConversionImpl(ConversionImplBase):
+    """
+    implements conversion which restores begin tags to a schema
+    without them, or with begin tags required only for disambiguation
+    """
     def __init__(self, 
             target : Schema,
             ) -> None:
@@ -546,6 +572,10 @@ class RestoreBegin(Conversion):
 
 
 class Explicit2ArbitrarySchema(Conversion):
+    """
+    wrapper around FromExplicitConversionImpl to implement Conversion.convert 
+    from explicit schema to an arbitrary one
+    """
     def __init__(self, explicit : Schema,
             target : Schema) -> None:
         if not explicit.is_explicit():
