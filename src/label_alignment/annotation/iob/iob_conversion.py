@@ -222,7 +222,7 @@ class Schema(object):
         """
         convenient access to mapping from description to prefix or None
         """
-        op : Prefix = self._mappings.get(description)
+        op : Optional[Prefix] = self._mappings.get(description)
         return op
 
     def map_and_reverse(self, description : Desc, 
